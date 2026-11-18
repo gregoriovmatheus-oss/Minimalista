@@ -1,0 +1,28 @@
+name: TikTok login
+
+# Coloque "<code> <redirect_uri>" em tiktok_code.txt e faça commit.
+on:
+  push:
+    paths: [tiktok_code.txt]
+
+permissions:
+  contents: write
+
+jobs:
+  login:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - env:
+          TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
+          TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
+        run: |
+          python -m clipador.tiktok login $(cat tiktok_code.txt)
+          git rm -q tiktok_code.txt
+          git add tiktok_token.enc
+          git -c user.name=clipador -c user.email=clipador@users.noreply.github.com \
+            commit -qm "TikTok conectado [skip ci]"
+          git push -q

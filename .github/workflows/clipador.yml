@@ -31,6 +31,8 @@ jobs:
       - name: Gravar e cortar (clipes vão saindo em Releases)
         env:
           GH_TOKEN: ${{ github.token }}
+          TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
+          TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
         run: |
           set +e  # um upload que falha não pode derrubar o resto
           TAG="clipes-$GITHUB_RUN_ID"
@@ -44,6 +46,13 @@ jobs:
               [ -e "enviados/$n" ] && continue
               cp "$f" "enviados/$n" && gh release upload "$TAG" "enviados/$n" --clobber \
                 && echo "📤 publicado: $n"
+              if [ -n "$TIKTOK_CLIENT_KEY" ] && [ -f tiktok_token.enc ]; then
+                python -m clipador.tiktok enviar "enviados/$n" 2>&1 | tail -2
+                if ! git diff --quiet tiktok_token.enc; then  # token renovado
+                  git -c user.name=clipador -c user.email=clipador@users.noreply.github.com \
+                    commit -qm "token TikTok renovado [skip ci]" tiktok_token.enc && git push -q
+                fi
+              fi
             done
             [ -f clipador.log ] && cp clipador.log enviados/log.txt \
               && gh release upload "$TAG" enviados/log.txt --clobber >/dev/null 2>&1
