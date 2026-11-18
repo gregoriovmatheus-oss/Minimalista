@@ -108,7 +108,7 @@ def test_detector_dispara_no_pico_e_respeita_intervalo():
     fired = []
     # 2 min de chat calmo: 1 msg a cada 2s
     while t < 120:
-        if d.add(t, "oi gente"):
+        if d.add(t, f"mensagem {int(t)}"):
             fired.append(t)
         t += 2
     assert fired == []
@@ -152,7 +152,7 @@ def test_grava_e_corta(tmp_path: Path):
 def test_exclamacao_e_esticada():
     kw = DEFAULT_KEYWORDS
     assert message_score("corre!!!", kw) == 3.25
-    assert message_score("!clip", kw) == 1.0
+    assert message_score("!comando", kw) == 1.0
     assert message_score("naaaaao", kw) == 2.0
 
 
