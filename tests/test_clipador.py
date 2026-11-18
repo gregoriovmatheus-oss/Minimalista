@@ -22,6 +22,7 @@ from clipador.youtube_chat import initial_continuation, parse_actions, video_id_
      "https://www.youtube.com/watch?v=abcdefghijk"),
     ("youtube.com/@canal/live", "youtube", "https://youtube.com/@canal/live"),
     ("https://youtu.be/abcdefghijk", "youtube", "https://youtu.be/abcdefghijk"),
+    ("https://kick.com/DavyJones", "kick", "https://kick.com/davyjones"),
 ])
 def test_resolve(alvo, plat, url):
     t = resolve(alvo)
