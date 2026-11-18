@@ -178,3 +178,20 @@ def test_pico_de_audio():
     d = LoudnessDetector(warmup=10)
     assert not any(d.add(t, -30.0) for t in range(0, 60, 2))
     assert d.add(62, -15.0)  # grito: +15 dB
+
+
+def test_acha_camera_parada(monkeypatch):
+    import clipador.clipper as c
+    cam = (1700, 820, 90, 90)  # rosto fixo no canto inferior direito
+    frames = [(1920, 1080, [cam, (100 + i * 150, 300, 80, 80)]) for i in range(8)]
+    monkeypatch.setattr(c, "_face_boxes", lambda src: frames)
+    x, y, w, h = c.find_facecam(Path("x"))
+    assert x <= 1700 and x + w >= 1790 and y <= 820 and y + h >= 910  # contém o rosto
+    assert x + w <= 1920 and y + h <= 1080 and abs(w / h - 4 / 3) < 0.05
+
+
+def test_sem_camera(monkeypatch):
+    import clipador.clipper as c
+    frames = [(1920, 1080, [(100 + i * 150, 300, 80, 80)]) for i in range(8)]  # só rosto do jogo
+    monkeypatch.setattr(c, "_face_boxes", lambda src: frames)
+    assert c.find_facecam(Path("x")) is None
