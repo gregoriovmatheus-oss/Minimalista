@@ -51,16 +51,15 @@ jobs:
           ( set +e; while true; do sleep 45; enviar || true; done ) &
           # pedidos de corte manual: asset "cortar.txt" no release (ex: "calango")
           touch comandos
-          ( set +e; while true; do
+          ( set +e; ultimo=""; while true; do
               sleep 8
-              id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" \
-                --jq '.assets[]|select(.name=="cortar.txt")|.id' 2>/dev/null)
-              [ -z "$id" ] && continue
-              gh api -H "Accept: application/octet-stream" \
-                "repos/$GITHUB_REPOSITORY/releases/assets/$id" > pedido.txt
-              gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$id"
-              echo "✋ pedido: $(cat pedido.txt)"
-              { cat pedido.txt; echo; } >> comandos
+              # pedido = linha "CORTAR: <canal> <qualquer id>" no texto do release
+              p=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq .body 2>/dev/null \
+                | grep -m1 '^CORTAR:' | cut -d: -f2- | xargs)
+              [ -z "$p" ] || [ "$p" = "$ultimo" ] && continue
+              ultimo="$p"
+              echo "✋ pedido: $p"
+              echo "${p%% *}" >> comandos
             done ) &
           python -m clipador $(grep -v '^\s*#' lives.txt | xargs) \
             --duracao "${{ inputs.duracao || '330' }}" -o clipes \
