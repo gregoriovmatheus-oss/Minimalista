@@ -88,7 +88,7 @@ class HypeDetector:
             self._counts[old] -= 1
         key = normalize(text)
         if key:
-            score += min(self._counts[key], 6) * 0.5
+            score += min(self._counts[key], 8) * 1.0
             self._recent.append((ts, key))
             self._counts[key] += 1
         self._events.append((ts, score))
