@@ -97,8 +97,9 @@ def test_score_keywords_e_emojis():
     kw = DEFAULT_KEYWORDS
     assert message_score("oi", kw) == 1.0
     assert message_score("KEKW KEKW", kw) > message_score("kekw", kw)  # caixa alta
-    assert message_score("kkkkkkkkkk", kw) == 2.5
-    assert message_score("😂😂😂", kw) == 3.0
+    assert message_score("kkkkkkkkkk", kw) == 5.0
+    assert message_score("KKKKKKKKKKKKKK", kw) == 5.5  # + caixa alta
+    assert message_score("😂😂😂", kw) == 1.0
 
 
 def test_detector_dispara_no_pico_e_respeita_intervalo():

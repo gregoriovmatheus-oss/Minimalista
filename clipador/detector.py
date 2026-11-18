@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 
 DEFAULT_KEYWORDS = {
     # risada
-    "kekw": 2.0, "lul": 1.5, "lmao": 1.5, "omegalul": 2.0, "kkkk": 1.5,
+    "kekw": 2.0, "lul": 1.5, "lmao": 1.5, "omegalul": 2.0, "kkkk": 4.0,
     "hahaha": 1.0, "rsrs": 0.5,
     # surpresa / hype
     "pog": 2.0, "pogchamp": 2.0, "poggers": 2.0, "pogu": 2.0, "monkas": 1.5,
@@ -18,7 +18,7 @@ DEFAULT_KEYWORDS = {
 }
 
 # emojis (comuns no chat do YouTube); contam uma vez por mensagem
-DEFAULT_EMOJIS = {"😂": 2.0, "🤣": 2.0, "😱": 1.5, "😮": 1.0, "🔥": 1.0, "💀": 1.5, "😳": 1.0}
+DEFAULT_EMOJIS: dict[str, float] = {}  # emojis não contam
 
 _WORD = re.compile(r"[\w]+", re.UNICODE)
 

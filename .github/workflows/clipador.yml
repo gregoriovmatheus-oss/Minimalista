@@ -3,7 +3,7 @@ name: Clipador
 # Edite lives.txt (um link por linha) e faça commit: a gravação começa sozinha.
 on:
   push:
-    paths: [lives.txt, palavras.txt, .github/workflows/clipador.yml]
+    paths: [lives.txt, palavras.txt, "clipador/**", .github/workflows/clipador.yml]
   workflow_dispatch:
     inputs:
       duracao:
