@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import re
-from collections import deque
+import unicodedata
+from collections import Counter, deque
 from dataclasses import dataclass, field
 
 DEFAULT_KEYWORDS = {
@@ -36,7 +37,19 @@ def message_score(
             bonus += keywords.get("kkkk", 0.0)  # kkkkkkkk de qualquer tamanho
     if text.isupper() and len(text) > 5:
         bonus += 0.5  # GRITANDO
+    if not text.startswith("!"):  # "!comando" de bot não conta
+        bonus += min(text.count("!"), 3) * 0.75  # exclamação: CORRE!!!
+    if re.search(r"([^\Wk])\1{3,}", text.lower()):
+        bonus += 1.0  # letra esticada: NAAAAAO, GOOOOL
     return 1.0 + bonus
+
+
+def normalize(text: str) -> str:
+    """Deixa parecidas iguais: 'NÃAAAO!!' e 'nao' viram 'nao'."""
+    t = unicodedata.normalize("NFKD", text.lower())
+    t = "".join(c for c in t if not unicodedata.combining(c))
+    t = " ".join(_WORD.findall(t))
+    return re.sub(r"(.)\1+", r"\1", t)[:40]
 
 
 @dataclass
@@ -61,12 +74,24 @@ class HypeDetector:
         self._started: float | None = None
         self._last_fire = float("-inf")
         self._last_tick: float | None = None
+        self._recent: deque[tuple[float, str]] = deque()
+        self._counts: Counter[str] = Counter()
 
     def add(self, ts: float, text: str) -> float | None:
         """Registra uma mensagem; retorna o horário do pico se disparou."""
         if self._started is None:
             self._started = ts
-        self._events.append((ts, message_score(text, self.keywords)))
+        score = message_score(text, self.keywords)
+        # repetição: a mesma coisa (ou parecida) sendo dita por muita gente
+        while self._recent and self._recent[0][0] < ts - self.window:
+            _, old = self._recent.popleft()
+            self._counts[old] -= 1
+        key = normalize(text)
+        if key:
+            score += min(self._counts[key], 6) * 0.5
+            self._recent.append((ts, key))
+            self._counts[key] += 1
+        self._events.append((ts, score))
         return self.tick(ts)
 
     def current(self, now: float) -> float:

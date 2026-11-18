@@ -7,7 +7,7 @@ import pytest
 
 from clipador.chat import parse_privmsg
 from clipador.clipper import Clipper
-from clipador.detector import HypeDetector, message_score, DEFAULT_KEYWORDS
+from clipador.detector import HypeDetector, message_score, normalize, DEFAULT_KEYWORDS
 from clipador.platform import resolve
 from clipador.recorder import Recorder
 from clipador.youtube_chat import initial_continuation, parse_actions, video_id_from_url
@@ -147,3 +147,20 @@ def test_grava_e_corta(tmp_path: Path):
         ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(out)],
         capture_output=True, text=True, check=True).stdout)
     assert 5 <= dur <= 9, dur
+
+
+def test_exclamacao_e_esticada():
+    kw = DEFAULT_KEYWORDS
+    assert message_score("corre!!!", kw) == 3.25
+    assert message_score("!clip", kw) == 1.0
+    assert message_score("naaaaao", kw) == 2.0
+
+
+def test_repeticao_conta():
+    assert normalize("NÃAAAO!!") == normalize("nao") == "nao"
+    d = HypeDetector(warmup=0, min_score=1e9)
+    d.add(0, "oi")
+    d.add(0.1, "NAAAO!!")
+    before = d.current(0.1)
+    d.add(0.2, "nãoo")
+    assert d.current(0.2) - before > message_score("nãoo", d.keywords)
