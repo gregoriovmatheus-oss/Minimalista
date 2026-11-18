@@ -121,8 +121,11 @@ def make_vertical(src: Path, out: Path, title: str = "") -> Path | None:
     cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(src),
            "-filter_complex", vf, "-map", "[v]", "-map", "0:a?",
            "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p",
-           "-r", "30", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(out)]
+           "-r", "30", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart",
+           "-f", "mp4", str(out) + ".part"]
     res = subprocess.run(cmd, capture_output=True, text=True)
+    if res.returncode == 0:
+        Path(str(out) + ".part").replace(out)  # só aparece quando está completo
     if txt:
         txt.unlink(missing_ok=True)
     if res.returncode != 0:
