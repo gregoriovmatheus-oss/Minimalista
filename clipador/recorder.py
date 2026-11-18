@@ -61,9 +61,16 @@ class Recorder:
         if self.buffer_dir.exists():
             shutil.rmtree(self.buffer_dir)
         self.buffer_dir.mkdir(parents=True)
+        self._attempt = 0
+        self._new_dir()
         self._spawn()
         self._thread = threading.Thread(target=self._watch, daemon=True)
         self._thread.start()
+
+    def _new_dir(self) -> None:
+        self._attempt += 1
+        self._dir = self.buffer_dir / f"r{self._attempt:03d}"
+        self._dir.mkdir()
 
     def _ffmpeg_cmd(self, input_arg: str) -> list[str]:
         cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error"]
@@ -76,10 +83,10 @@ class Recorder:
             "-f", "segment",
             "-segment_time", str(self.segment_seconds),
             "-segment_format", "mpegts",
-            "-segment_list", str(self.buffer_dir / "lista.csv"),
+            "-segment_list", str(self._dir / "lista.csv"),
             "-segment_list_type", "csv",
             "-reset_timestamps", "1",
-            str(self.buffer_dir / "seg_%07d.ts"),
+            str(self._dir / "seg_%07d.ts"),
         ]
         return cmd
 
@@ -103,9 +110,18 @@ class Recorder:
 
     # ------------------------------------------------------------- vigilância
     def _watch(self) -> None:
-        csv_path = self.buffer_dir / "lista.csv"
+        csv_path = self._dir / "lista.csv"
         lines_read = 0
         while not self._stop.is_set():
+            if (not self.source and self._procs and self._procs[-1].poll() is not None):
+                # live caiu: tenta de novo a cada minuto (o streamer pode voltar)
+                log.warning("live offline ou caiu — tentando de novo em 60s")
+                if self._stop.wait(60):
+                    break
+                self._new_dir()
+                self._spawn()
+                csv_path, lines_read = self._dir / "lista.csv", 0
+                continue
             if csv_path.exists():
                 lines = csv_path.read_text().splitlines()
                 now = time.time()
@@ -125,7 +141,7 @@ class Recorder:
             dur = float(t1) - float(t0)
         except ValueError:
             return
-        seg = Segment(self.buffer_dir / name, finished_at - dur, finished_at)
+        seg = Segment(self._dir / name, finished_at - dur, finished_at)
         with self._lock:
             self.segments.append(seg)
         log.debug("segmento %s (%.1fs)", name, dur)
