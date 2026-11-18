@@ -65,7 +65,7 @@ jobs:
           python -m clipador $(grep -v '^\s*#' lives.txt | xargs) \
             --duracao "${{ inputs.duracao || '330' }}" -o clipes \
             --aquecimento 30 --minimo 10 \
-            --palavras "$(tr '\n' ',' < palavras.txt)" --antes 50 \
+            --palavras "$(tr '\n' ',' < palavras.txt)" --antes 40 --intervalo 90 \
             < <(tail -n0 -F comandos) 2>&1 | tee clipador.log || true
           sleep 5; enviar
       - name: Clipes verticais (prontos para postar)
