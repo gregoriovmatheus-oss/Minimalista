@@ -52,6 +52,41 @@ def normalize(text: str) -> str:
     return re.sub(r"(.)\1+", r"\1", t)[:40]
 
 
+# Tipo de cena -> (palavras/prefixos no chat, título do clipe)
+CATEGORIES: dict[str, tuple[tuple[str, ...], str]] = {
+    "engracado": (("kkk", "kekw", "lul", "omegalul", "lmao", "hahaha", "rsrs", "risada",
+                   "morri", "chorando", "socorro"), "KKKKKKKKK"),
+    "assalto": (("assalt", "roub", "banco", "joalheria", "cofre", "refem", "refém"),
+                "O ASSALTO"),
+    "tenso": (("morreu", "morre", "preso", "prenderam", "cadeia", "fuga", "foge",
+               "persegui", "policia", "polícia", "viatura", "tiro", "matou", "wasted",
+               "busted", "rip", "monkas", "tenso", "nãoo", "naoo", "plot", "missao",
+               "missão", "final", "boss", "chefe", "traiu", "traição"), "CENA TENSA"),
+    "meme": (("cinema", "aura", "goat", "lenda", "absurdo", "insano", "w", "l", "f",
+              "ratio", "sus", "bait", "classico", "clássico", "pog", "pogchamp"),
+             "CINEMA PURO"),
+}
+DEFAULT_TITLE = "OLHA ISSO"
+
+
+def categorize(texts: list[str]) -> str:
+    """Escolhe o tipo de cena que mais aparece nas mensagens (ou '' se nenhum)."""
+    votes = Counter()
+    for t in texts:
+        words = _WORD.findall(t.lower())
+        for cat, (keys, _) in CATEGORIES.items():
+            if any(w == k or (len(k) > 2 and w.startswith(k)) for w in words for k in keys):
+                votes[cat] += 1
+    if not votes:
+        return ""
+    cat, n = votes.most_common(1)[0]
+    return cat if n >= max(2, len(texts) * 0.15) else ""
+
+
+def title_for(category: str) -> str:
+    return CATEGORIES[category][1] if category in CATEGORIES else DEFAULT_TITLE
+
+
 @dataclass
 class HypeDetector:
     """Compara a pontuação dos últimos ``window`` s com a média histórica.
@@ -76,12 +111,14 @@ class HypeDetector:
         self._last_tick: float | None = None
         self._recent: deque[tuple[float, str]] = deque()
         self._counts: Counter[str] = Counter()
+        self._texts: deque[tuple[float, str]] = deque(maxlen=400)
 
     def add(self, ts: float, text: str) -> float | None:
         """Registra uma mensagem; retorna o horário do pico se disparou."""
         if self._started is None:
             self._started = ts
         score = message_score(text, self.keywords)
+        self._texts.append((ts, text))
         # repetição: a mesma coisa (ou parecida) sendo dita por muita gente
         while self._recent and self._recent[0][0] < ts - self.window:
             _, old = self._recent.popleft()
@@ -93,6 +130,10 @@ class HypeDetector:
             self._counts[key] += 1
         self._events.append((ts, score))
         return self.tick(ts)
+
+    def category(self, now: float, span: float = 20.0) -> str:
+        """Tipo de cena do momento, olhando o chat dos últimos ``span`` s."""
+        return categorize([t for ts, t in self._texts if ts >= now - span])
 
     def current(self, now: float) -> float:
         while self._events and self._events[0][0] < now - self.window:
@@ -125,3 +166,32 @@ class HypeDetector:
             self._last_fire = now
             return now
         return None
+
+
+@dataclass
+class LoudnessDetector:
+    """Pico de áudio: grito, risada alta, explosão, tiroteio.
+
+    Recebe o volume médio (dB) de cada trecho e dispara quando fica
+    ``jump_db`` acima da média recente.
+    """
+
+    jump_db: float = 9.0
+    warmup: float = 60.0
+    alpha: float = 0.05
+
+    def __post_init__(self) -> None:
+        self._baseline: float | None = None
+        self._started: float | None = None
+
+    def add(self, ts: float, mean_db: float) -> bool:
+        if mean_db <= -80:  # silêncio total / sem áudio
+            return False
+        if self._started is None:
+            self._started = ts
+        if self._baseline is None:
+            self._baseline = mean_db
+            return False
+        fired = ts - self._started >= self.warmup and mean_db >= self._baseline + self.jump_db
+        self._baseline += self.alpha * (mean_db - self._baseline)
+        return fired

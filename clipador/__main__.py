@@ -10,9 +10,9 @@ import time
 from pathlib import Path
 
 from .clipper import Clipper
-from .detector import HypeDetector
+from .detector import HypeDetector, LoudnessDetector, title_for
 from .platform import Target, resolve
-from .recorder import Recorder
+from .recorder import Recorder, mean_volume
 
 log = logging.getLogger("clipador")
 
@@ -39,6 +39,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="segundos observando o chat antes de cortar (padrão: 60)")
     p.add_argument("--comando", default="!clip",
                    help="comando que mods/streamer usam no chat para cortar ('' desliga)")
+    p.add_argument("--sem-audio", action="store_true",
+                   help="não corta por pico de volume (grito, explosão)")
     p.add_argument("--sem-vertical", action="store_true",
                    help="não gera a versão 9:16 pronta para TikTok/Shorts/Reels")
     p.add_argument("--fonte", action="append", default=[],
@@ -66,6 +68,7 @@ def chat_loop(args, target: Target, clipper: Clipper, stop: threading.Event) -> 
             stop.wait(1)
 
     threading.Thread(target=ticker, daemon=True).start()
+    clipper.chat_category = det.category
     for msg in target.chat():
         if stop.is_set():
             return
@@ -75,8 +78,25 @@ def chat_loop(args, target: Target, clipper: Clipper, stop: threading.Event) -> 
             continue
         fired = det.add(msg.ts, msg.text)
         if fired:
-            log.info("🔥 hype no chat (%.0f vs normal %.1f)", det.current(fired), det.baseline)
-            clipper.clip_async(fired, "hype")
+            cat = det.category(fired)
+            if clipper.auto_clip(fired, cat or "hype", title_for(cat)):
+                log.info("🔥 [%s] chat: %s (%.0f vs normal %.1f)", target.name,
+                         cat or "hype", det.current(fired), det.baseline)
+
+
+def audio_loop(name: str, rec: Recorder, clipper: Clipper, args, stop: threading.Event,
+               chat_category=None) -> None:
+    """Olha o volume de cada trecho novo: grito, risada alta, explosão."""
+    det = LoudnessDetector(warmup=args.aquecimento)
+    last = 0.0
+    while not stop.is_set():
+        for seg in rec.segments_after(last):
+            last = seg.end
+            if seg.path.exists() and det.add(seg.end, mean_volume(seg.path)):
+                cat = chat_category(seg.end) if chat_category else ""
+                if clipper.auto_clip(seg.end, cat or "audio", title_for(cat)):
+                    log.info("🔊 [%s] pico de áudio (%s)", name, cat or "sem chat")
+        stop.wait(1)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -107,12 +127,19 @@ def main(argv: list[str] | None = None) -> int:
         )
         clipper = Clipper(rec, out, args.antes, args.depois,
                           vertical=not args.sem_vertical, label=name)
+        clipper.cooldown = args.intervalo
         rec.start()
         lives.append((name, rec, clipper))
         log.info("[%d] gravando %s", n, name if is_src else f"{name} ({t.platform})")
         if not is_src and not args.sem_chat:
             threading.Thread(target=chat_loop, args=(args, t, clipper, stop),
                              daemon=True).start()
+        if not args.sem_audio:
+            threading.Thread(
+                target=audio_loop, daemon=True,
+                args=(name, rec, clipper, args, stop,
+                      lambda ts, c=clipper: getattr(c, "chat_category", lambda _: "")(ts)),
+            ).start()
 
     t0 = time.time()
 

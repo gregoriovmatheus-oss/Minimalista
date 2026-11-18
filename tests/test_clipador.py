@@ -7,7 +7,7 @@ import pytest
 
 from clipador.chat import parse_privmsg
 from clipador.clipper import Clipper
-from clipador.detector import HypeDetector, message_score, normalize, DEFAULT_KEYWORDS
+from clipador.detector import HypeDetector, LoudnessDetector, categorize, message_score, normalize, DEFAULT_KEYWORDS
 from clipador.platform import resolve
 from clipador.recorder import Recorder
 from clipador.youtube_chat import initial_continuation, parse_actions, video_id_from_url
@@ -164,3 +164,17 @@ def test_repeticao_conta():
     before = d.current(0.1)
     d.add(0.2, "nãoo")
     assert d.current(0.2) - before > message_score("nãoo", d.keywords)
+
+
+def test_categoria_da_cena():
+    assert categorize(["KKKKKKK", "kkkk morri", "oi"]) == "engracado"
+    assert categorize(["ASSALTO NO BANCO", "vai roubar", "assaltando"]) == "assalto"
+    assert categorize(["morreu??", "NÃOOO morreu", "rip"]) == "tenso"
+    assert categorize(["cinema", "CINEMA", "aura"]) == "meme"
+    assert categorize(["oi", "boa noite"]) == ""
+
+
+def test_pico_de_audio():
+    d = LoudnessDetector(warmup=10)
+    assert not any(d.add(t, -30.0) for t in range(0, 60, 2))
+    assert d.add(62, -15.0)  # grito: +15 dB

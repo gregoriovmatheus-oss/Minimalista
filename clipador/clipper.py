@@ -37,6 +37,18 @@ class Clipper:
         self.post = post_seconds
         self.vertical = vertical
         self.label = label
+        self.cooldown = 45.0
+        self._last_auto = float("-inf")
+        self._auto_lock = threading.Lock()
+
+    def auto_clip(self, moment: float, reason: str, title: str) -> bool:
+        """Clipe automático (chat ou áudio), sem repetir o mesmo momento."""
+        with self._auto_lock:
+            if moment - self._last_auto < self.cooldown:
+                return False
+            self._last_auto = moment
+        threading.Thread(target=self.clip, args=(moment, reason, title), daemon=True).start()
+        return True
 
     def clip_async(self, moment: float, reason: str = "manual") -> threading.Thread:
         """Agenda um clipe ao redor de ``moment`` sem travar o chat."""
@@ -44,7 +56,7 @@ class Clipper:
         t.start()
         return t
 
-    def clip(self, moment: float, reason: str = "manual") -> Path | None:
+    def clip(self, moment: float, reason: str = "manual", title: str = "") -> Path | None:
         start, end = moment - self.pre, moment + self.post
         # espera o "depois" ser gravado
         deadline = end + 30
@@ -82,9 +94,11 @@ class Clipper:
         dur = segs[-1].end - segs[0].start
         log.info("✂  clipe salvo: %s (%.0fs, %s)", out.name, dur, reason)
         if self.vertical:
-            title = reason if reason not in ("manual", "hype") and not reason.startswith("chat-") \
-                else self.label
-            make_vertical(out, out.with_name(out.stem + "_vertical.mp4"), title)
+            if not title:
+                title = reason if reason != "manual" and not reason.startswith("chat-") \
+                    else "OLHA ISSO"
+            make_vertical(out, out.with_name(out.stem + "_vertical.mp4"), title,
+                          f"@{self.label}" if self.label else "")
         return out
 
 
@@ -101,22 +115,26 @@ def _font() -> str | None:
     return None
 
 
-def make_vertical(src: Path, out: Path, title: str = "") -> Path | None:
+def make_vertical(src: Path, out: Path, title: str = "", footer: str = "") -> Path | None:
     """9:16 (1080x1920) para TikTok/Shorts/Reels: vídeo no centro, fundo desfocado,
     título em cima."""
     vf = ("[0:v]split[a][b];"
           "[a]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,"
           "boxblur=20:2,eq=brightness=-0.15[bg];"
-          "[b]scale=1080:-2[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2")
-    txt = None
+          "[b]crop='min(iw,ih*4/3)':ih,scale=1080:-2[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2")
+    txts: list[Path] = []
     font = _font()
-    if title and font:
-        txt = out.with_suffix(".titulo.txt")
-        txt.write_text(title[:60])
+    if font:
         f = font.replace("\\", "/").replace(":", "\\:")
-        t = str(txt.resolve()).replace("\\", "/").replace(":", "\\:")
-        vf += (f",drawtext=fontfile='{f}':textfile='{t}':fontsize=72:fontcolor=white:"
-               "borderw=5:bordercolor=black:x=(w-tw)/2:y=h*0.16")
+        for i, (text, size, y) in enumerate(((title, 92, "h*0.13"), (footer, 54, "h*0.80"))):
+            if not text:
+                continue
+            txt = out.with_suffix(f".t{i}.txt")
+            txt.write_text(text[:40])
+            txts.append(txt)
+            t = str(txt.resolve()).replace("\\", "/").replace(":", "\\:")
+            vf += (f",drawtext=fontfile='{f}':textfile='{t}':fontsize={size}:fontcolor=white:"
+                   f"borderw=6:bordercolor=black:x=(w-tw)/2:y={y}")
     vf += "[v]"
     cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(src),
            "-filter_complex", vf, "-map", "[v]", "-map", "0:a?",
@@ -126,7 +144,7 @@ def make_vertical(src: Path, out: Path, title: str = "") -> Path | None:
     res = subprocess.run(cmd, capture_output=True, text=True)
     if res.returncode == 0:
         Path(str(out) + ".part").replace(out)  # só aparece quando está completo
-    if txt:
+    for txt in txts:
         txt.unlink(missing_ok=True)
     if res.returncode != 0:
         log.error("versão vertical falhou: %s", res.stderr.strip()[-300:])

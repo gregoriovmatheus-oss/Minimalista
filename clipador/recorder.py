@@ -149,6 +149,10 @@ class Recorder:
         with self._lock:
             return self.segments[-1].end if self.segments else 0.0
 
+    def segments_after(self, t: float) -> list[Segment]:
+        with self._lock:
+            return [s for s in self.segments if s.end > t]
+
     @property
     def running(self) -> bool:
         return bool(self._procs) and self._procs[-1].poll() is None
@@ -165,3 +169,19 @@ class Recorder:
                 p.kill()
         if self._thread:
             self._thread.join(timeout=2)
+
+
+def mean_volume(path: Path) -> float:
+    """Volume médio do trecho em dB (-91 se não tiver áudio)."""
+    r = subprocess.run(
+        ["ffmpeg", "-hide_banner", "-nostats", "-i", str(path), "-map", "0:a:0?",
+         "-af", "volumedetect", "-f", "null", "-"],
+        capture_output=True, text=True,
+    )
+    for line in r.stderr.splitlines():
+        if "mean_volume:" in line:
+            try:
+                return float(line.split("mean_volume:")[1].split()[0])
+            except ValueError:
+                pass
+    return -91.0
