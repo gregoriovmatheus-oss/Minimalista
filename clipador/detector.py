@@ -83,8 +83,31 @@ def categorize(texts: list[str]) -> str:
     return cat if n >= max(2, len(texts) * 0.15) else ""
 
 
-def title_for(category: str) -> str:
-    return CATEGORIES[category][1] if category in CATEGORIES else DEFAULT_TITLE
+HOOKS = {
+    "engracado": ["{n} NÃO AGUENTOU KKKKK", "O CHAT INTEIRO CHOROU DE RIR",
+                  "{n} NÃO ESPERAVA ISSO KKKK", "ISSO FOI DEMAIS KKKKKK"],
+    "assalto": ["O ASSALTO DO {n} DEU RUIM?", "{n} TENTOU O ASSALTO MAIS ARRISCADO",
+                "ESPERA O FINAL DESSE ASSALTO", "ELES IAM ROUBAR TUDO..."],
+    "tenso": ["ESPERA O FINAL...", "NINGUÉM ESPERAVA ISSO", "DEU MUITO RUIM PRO {n}",
+              "{n} NÃO VIU ISSO VINDO"],
+    "meme": ["ISSO É CINEMA PURO", "A AURA DO {n} É OUTRA", "JOGADA DE GÊNIO DO {n}",
+             "O CHAT FICOU MALUCO"],
+    "": ["OLHA O QUE O {n} FEZ", "ESPERA ATÉ O FINAL", "{n} PERDEU A CABEÇA",
+         "VOCÊ NÃO VAI ACREDITAR NISSO"],
+}
+
+
+def hook(category: str, name: str = "") -> str:
+    """Legenda-gancho para o topo do clipe."""
+    import random
+    opts = HOOKS.get(category) or HOOKS[""]
+    if not name:
+        opts = [o for o in opts if "{n}" not in o] or ["ESPERA ATÉ O FINAL"]
+    return random.choice(opts).replace("{n}", name.upper())
+
+
+def title_for(category: str, name: str = "") -> str:
+    return hook(category, name)
 
 
 @dataclass

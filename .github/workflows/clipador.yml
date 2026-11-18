@@ -32,6 +32,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set +e  # um upload que falha não pode derrubar o resto
           TAG="clipes-$GITHUB_RUN_ID"
           gh release create "$TAG" --prerelease --target "$GITHUB_SHA" \
             --title "Clipes $(TZ=America/Sao_Paulo date '+%d/%m %H:%M')" \
@@ -47,11 +48,25 @@ jobs:
             [ -f clipador.log ] && cp clipador.log enviados/log.txt \
               && gh release upload "$TAG" enviados/log.txt --clobber >/dev/null 2>&1
           }
-          ( while true; do sleep 60; enviar; done ) &
+          ( set +e; while true; do sleep 45; enviar || true; done ) &
+          # pedidos de corte manual: asset "cortar.txt" no release (ex: "calango")
+          touch comandos
+          ( set +e; while true; do
+              sleep 8
+              id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" \
+                --jq '.assets[]|select(.name=="cortar.txt")|.id' 2>/dev/null)
+              [ -z "$id" ] && continue
+              gh api -H "Accept: application/octet-stream" \
+                "repos/$GITHUB_REPOSITORY/releases/assets/$id" > pedido.txt
+              gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$id"
+              echo "✋ pedido: $(cat pedido.txt)"
+              { cat pedido.txt; echo; } >> comandos
+            done ) &
           python -m clipador $(grep -v '^\s*#' lives.txt | xargs) \
             --duracao "${{ inputs.duracao || '330' }}" -o clipes \
             --aquecimento 30 --minimo 10 \
-            --palavras "$(tr '\n' ',' < palavras.txt)" < /dev/null 2>&1 | tee clipador.log || true
+            --palavras "$(tr '\n' ',' < palavras.txt)" --antes 50 \
+            < <(tail -n0 -F comandos) 2>&1 | tee clipador.log || true
           sleep 5; enviar
       - name: Clipes verticais (prontos para postar)
         if: always()

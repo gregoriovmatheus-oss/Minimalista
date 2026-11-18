@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 import threading
 import time
@@ -41,6 +42,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="comando que mods/streamer usam no chat para cortar ('' desliga)")
     p.add_argument("--melhor-a-cada", type=float, default=6,
                    help="sem clipe por N minutos? corta o melhor momento do período (0 desliga)")
+    p.add_argument("--assinatura", default="@viceclips.vibr", help="texto no rodapé do clipe")
     p.add_argument("--sem-audio", action="store_true",
                    help="não corta por pico de volume (grito, explosão)")
     p.add_argument("--sem-vertical", action="store_true",
@@ -74,7 +76,7 @@ def chat_loop(args, target: Target, clipper: Clipper, stop: threading.Event) -> 
             fired = det.tick(now)
             if fired:  # disparo também pode vir só do relógio
                 cat = det.category(fired)
-                if clipper.auto_clip(fired, cat or "hype", title_for(cat)):
+                if clipper.auto_clip(fired, cat or "hype", title_for(cat, clipper.label)):
                     log.info("🔥 [%s] chat: %s", target.name, cat or "hype")
             ratio = det.current(now) / max(det.baseline, 1.0)
             if ratio > best["ratio"] and now - started > args.aquecimento:
@@ -83,7 +85,7 @@ def chat_loop(args, target: Target, clipper: Clipper, stop: threading.Event) -> 
             since = now - max(clipper._last_auto, started)
             if args.melhor_a_cada and since > args.melhor_a_cada * 60 and best["ratio"] >= 1.2:
                 cat = det.category(best["ts"])
-                if clipper.auto_clip(best["ts"], cat or "destaque", title_for(cat)):
+                if clipper.auto_clip(best["ts"], cat or "destaque", title_for(cat, clipper.label)):
                     log.info("⭐ [%s] melhor momento dos últimos %d min (%.1fx o normal)",
                              target.name, args.melhor_a_cada, best["ratio"])
                 best.update(ratio=0.0, ts=0.0)
@@ -105,7 +107,7 @@ def chat_loop(args, target: Target, clipper: Clipper, stop: threading.Event) -> 
         fired = det.add(msg.ts, msg.text)
         if fired:
             cat = det.category(fired)
-            if clipper.auto_clip(fired, cat or "hype", title_for(cat)):
+            if clipper.auto_clip(fired, cat or "hype", title_for(cat, clipper.label)):
                 log.info("🔥 [%s] chat: %s (%.0f vs normal %.1f)", target.name,
                          cat or "hype", det.current(fired), det.baseline)
 
@@ -120,7 +122,7 @@ def audio_loop(name: str, rec: Recorder, clipper: Clipper, args, stop: threading
             last = seg.end
             if seg.path.exists() and det.add(seg.end, mean_volume(seg.path)):
                 cat = chat_category(seg.end) if chat_category else ""
-                if clipper.auto_clip(seg.end, cat or "audio", title_for(cat)):
+                if clipper.auto_clip(seg.end, cat or "audio", title_for(cat, clipper.label)):
                     log.info("🔊 [%s] pico de áudio (%s)", name, cat or "sem chat")
         stop.wait(1)
 
@@ -154,6 +156,7 @@ def main(argv: list[str] | None = None) -> int:
         clipper = Clipper(rec, out, args.antes, args.depois,
                           vertical=not args.sem_vertical, label=name)
         clipper.cooldown = args.intervalo
+        clipper.signature = args.assinatura
         rec.start()
         lives.append((name, rec, clipper))
         log.info("[%d] gravando %s", n, name if is_src else f"{name} ({t.platform})")
@@ -172,6 +175,17 @@ def main(argv: list[str] | None = None) -> int:
     def expired() -> bool:
         return bool(args.duracao) and time.time() - t0 > args.duracao * 60
 
+    def watchdog() -> None:  # encerra sozinho no fim do tempo ou se todas caírem
+        while not expired() and any(r.running for _, r, _ in lives):
+            time.sleep(5)
+        time.sleep(args.depois + 60)  # deixa clipes pendentes terminarem
+        stop.set()
+        for _, rec, _ in lives:
+            rec.stop()
+        log.info("fim da gravação")
+        os._exit(0)
+
+    threading.Thread(target=watchdog, daemon=True).start()
     log.info("ENTER corta todas • '2' ou '2 texto' + ENTER corta só a live 2 • Ctrl+C sai")
     try:
         while True:
@@ -183,8 +197,11 @@ def main(argv: list[str] | None = None) -> int:
                 break
             now = time.time()
             first, _, rest = line.strip().partition(" ")
+            names = [n.lower() for n, _, _ in lives]
             if first.isdigit() and 1 <= int(first) <= len(lives):
                 chosen, note = [lives[int(first) - 1]], rest.strip()
+            elif first.lower().lstrip("@") in names:
+                chosen, note = [lives[names.index(first.lower().lstrip("@"))]], rest.strip()
             else:
                 chosen, note = lives, line.strip()
             for name, _, clipper in chosen:

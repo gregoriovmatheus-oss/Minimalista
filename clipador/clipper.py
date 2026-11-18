@@ -11,6 +11,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from .detector import hook
 from .recorder import Recorder
 
 log = logging.getLogger(__name__)
@@ -37,6 +38,7 @@ class Clipper:
         self.post = post_seconds
         self.vertical = vertical
         self.label = label
+        self.signature = "@viceclips.vibr"
         self.cooldown = 45.0
         self._last_auto = float("-inf")
         self._auto_lock = threading.Lock()
@@ -96,9 +98,8 @@ class Clipper:
         if self.vertical:
             if not title:
                 title = reason if reason != "manual" and not reason.startswith("chat-") \
-                    else "OLHA ISSO"
-            make_vertical(out, out.with_name(out.stem + "_vertical.mp4"), title,
-                          f"@{self.label}" if self.label else "")
+                    else hook("", self.label)
+            make_vertical(out, out.with_name(out.stem + "_vertical.mp4"), title, self.signature)
         return out
 
 
@@ -175,6 +176,17 @@ def find_facecam(src: Path) -> tuple[int, int, int, int] | None:
     return x0, y0, cw, ch
 
 
+def _wrap(text: str, width: int) -> list[str]:
+    lines, cur = [], ""
+    for w in text.split():
+        if cur and len(cur) + 1 + len(w) > width:
+            lines.append(cur)
+            cur = w
+        else:
+            cur = f"{cur} {w}".strip()
+    return lines + ([cur] if cur else [])
+
+
 def make_vertical(src: Path, out: Path, title: str = "", footer: str = "") -> Path | None:
     """9:16 (1080x1920) para TikTok/Shorts/Reels: vídeo no centro, fundo desfocado,
     título em cima."""
@@ -188,26 +200,31 @@ def make_vertical(src: Path, out: Path, title: str = "", footer: str = "") -> Pa
               f"[b]crop={w}:{h}:{x}:{y},scale=1080:810[cam];"
               "[c]scale=1080:-2[game];"
               "[bg][cam]overlay=0:230[t];[t][game]overlay=0:1080")
-        title_y, footer_y = "70", "1735"
+        title_y, footer_y = "40", "1735"
         log.info("📷 câmera do streamer encontrada em x=%d y=%d", x, y)
     else:
         # sem câmera: jogo inteiro (sem cortar os cantos) no meio
         vf = ("[0:v]split[a][b];" + bg +
               "[b]scale=1080:-2[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2")
-        title_y, footer_y = "h*0.13", "h*0.80"
+        title_y, footer_y = "h*0.11", "h*0.80"
     txts: list[Path] = []
     font = _font()
     if font:
         f = font.replace("\\", "/").replace(":", "\\:")
-        for i, (text, size, y) in enumerate(((title, 92, title_y), (footer, 54, footer_y))):
-            if not text:
-                continue
+        # gancho em até 2 linhas, cada uma numa tarja vermelha; assinatura embaixo
+        lines = _wrap(title.upper(), 18)[:2] if title else []
+        items = [(ln, 78, f"({title_y})+{i * 110}", True) for i, ln in enumerate(lines)]
+        if footer:
+            items.append((footer, 52, footer_y, False))
+        for i, (text, size, y, box) in enumerate(items):
             txt = out.with_suffix(f".t{i}.txt")
-            txt.write_text(text[:40])
+            txt.write_text(text)
             txts.append(txt)
             t = str(txt.resolve()).replace("\\", "/").replace(":", "\\:")
+            style = ("box=1:boxcolor=0xE11D48@0.95:boxborderw=18:borderw=3:bordercolor=black"
+                     if box else "borderw=5:bordercolor=black")
             vf += (f",drawtext=fontfile='{f}':textfile='{t}':fontsize={size}:fontcolor=white:"
-                   f"borderw=6:bordercolor=black:x=(w-tw)/2:y={y}")
+                   f"{style}:x=(w-tw)/2:y={y}")
     vf += "[v]"
     cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(src),
            "-filter_complex", vf, "-map", "[v]", "-map", "0:a?",
