@@ -22,8 +22,8 @@ def build_parser() -> argparse.ArgumentParser:
         prog="clipador",
         description="Acompanha uma live da Twitch ou do YouTube e corta clipes ao vivo.",
     )
-    p.add_argument("live", nargs="?",
-                   help="canal da Twitch (ex: gaules) ou link da live (Twitch ou YouTube)")
+    p.add_argument("lives", nargs="*", metavar="live",
+                   help="um ou mais canais da Twitch (ex: gaules) ou links de live (Twitch/YouTube)")
     p.add_argument("-q", "--qualidade", default="best", help="qualidade do streamlink (padrão: best)")
     p.add_argument("-o", "--saida", default="clipes", type=Path, help="pasta dos clipes")
     p.add_argument("--antes", type=float, default=30, help="segundos antes do momento (padrão: 30)")
@@ -39,7 +39,10 @@ def build_parser() -> argparse.ArgumentParser:
                    help="segundos observando o chat antes de cortar (padrão: 60)")
     p.add_argument("--comando", default="!clip",
                    help="comando que mods/streamer usam no chat para cortar ('' desliga)")
-    p.add_argument("--fonte", help="(teste) entrada do ffmpeg no lugar da Twitch, ex: video.mp4")
+    p.add_argument("--sem-vertical", action="store_true",
+                   help="não gera a versão 9:16 pronta para TikTok/Shorts/Reels")
+    p.add_argument("--fonte", action="append", default=[],
+                   help="(teste) vídeo local no lugar de uma live; pode repetir")
     p.add_argument("-v", "--verbose", action="store_true")
     return p
 
@@ -70,53 +73,65 @@ def chat_loop(args, target: Target, clipper: Clipper, stop: threading.Event) -> 
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(asctime)s %(message)s", datefmt="%H:%M:%S",
     )
-    if not args.live and not args.fonte:
-        build_parser().error("informe o canal ou o link da live")
-    target = None
-    if args.live:
-        try:
-            target = resolve(args.live)
-        except ValueError as e:
-            build_parser().error(str(e))
+    if not args.lives and not args.fonte:
+        parser.error("informe o canal ou o link da live")
+    try:
+        targets: list[Target | str] = [resolve(x) for x in args.lives] + list(args.fonte)
+    except ValueError as e:
+        parser.error(str(e))
 
-    buffer_dir = args.saida / ".buffer"
-    rec = Recorder(
-        buffer_dir, stream_url=target.stream_url if target else None, quality=args.qualidade, source=args.fonte,
-        buffer_seconds=max(args.buffer, int(args.antes + args.depois + 30)),
-        realtime_input=bool(args.fonte),
-    )
-    clipper = Clipper(rec, args.saida, args.antes, args.depois)
     stop = threading.Event()
+    lives: list[tuple[str, Recorder, Clipper]] = []
+    for n, t in enumerate(targets, 1):
+        is_src = isinstance(t, str)
+        name = Path(t).stem if is_src else t.name
+        out = args.saida / name if len(targets) > 1 else args.saida
+        rec = Recorder(
+            out / ".buffer", stream_url=None if is_src else t.stream_url,
+            quality=args.qualidade, source=t if is_src else None,
+            buffer_seconds=max(args.buffer, int(args.antes + args.depois + 30)),
+            realtime_input=is_src,
+        )
+        clipper = Clipper(rec, out, args.antes, args.depois,
+                          vertical=not args.sem_vertical, label=name)
+        rec.start()
+        lives.append((name, rec, clipper))
+        log.info("[%d] gravando %s", n, name if is_src else f"{name} ({t.platform})")
+        if not is_src and not args.sem_chat:
+            threading.Thread(target=chat_loop, args=(args, t, clipper, stop),
+                             daemon=True).start()
 
-    rec.start()
-    log.info("gravando %s — aperte ENTER para cortar, Ctrl+C para sair",
-             f"{target.name} ({target.platform})" if target else args.fonte)
-
-    if target and not args.sem_chat:
-        threading.Thread(target=chat_loop, args=(args, target, clipper, stop),
-                         daemon=True).start()
-
+    log.info("ENTER corta todas • '2' ou '2 texto' + ENTER corta só a live 2 • Ctrl+C sai")
     try:
         while True:
             line = sys.stdin.readline()
             if not line:  # stdin fechado: só espera a gravação
-                while rec.running:
+                while any(r.running for _, r, _ in lives):
                     time.sleep(1)
                 break
-            note = line.strip() or "manual"
-            clipper.clip_async(time.time(), note)
-            log.info("marcado! salvando em %ss…", int(args.depois))
+            now = time.time()
+            first, _, rest = line.strip().partition(" ")
+            if first.isdigit() and 1 <= int(first) <= len(lives):
+                chosen, note = [lives[int(first) - 1]], rest.strip()
+            else:
+                chosen, note = lives, line.strip()
+            for name, _, clipper in chosen:
+                clipper.clip_async(now, note or "manual")
+            log.info("marcado (%s)! salvando em %ss…",
+                     ", ".join(n for n, _, _ in chosen), int(args.depois))
     except KeyboardInterrupt:
         pass
     finally:
         stop.set()
         log.info("encerrando…")
-        rec.stop()
+        for _, rec, _ in lives:
+            rec.stop()
     return 0
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+import shutil
 import subprocess
 import threading
 import time
@@ -26,12 +27,16 @@ class Clipper:
         out_dir: Path,
         pre_seconds: float = 30,
         post_seconds: float = 10,
+        vertical: bool = True,
+        label: str = "",
     ) -> None:
         self.recorder = recorder
         self.out_dir = Path(out_dir)
         self.out_dir.mkdir(parents=True, exist_ok=True)
         self.pre = pre_seconds
         self.post = post_seconds
+        self.vertical = vertical
+        self.label = label
 
     def clip_async(self, moment: float, reason: str = "manual") -> threading.Thread:
         """Agenda um clipe ao redor de ``moment`` sem travar o chat."""
@@ -76,4 +81,52 @@ class Clipper:
             return None
         dur = segs[-1].end - segs[0].start
         log.info("✂  clipe salvo: %s (%.0fs, %s)", out.name, dur, reason)
+        if self.vertical:
+            title = reason if reason not in ("manual", "hype") and not reason.startswith("chat-") \
+                else self.label
+            make_vertical(out, out.with_name(out.stem + "_vertical.mp4"), title)
         return out
+
+
+def _font() -> str | None:
+    if shutil.which("fc-match"):
+        r = subprocess.run(["fc-match", "-f", "%{file}", "sans:bold"],
+                           capture_output=True, text=True)
+        if r.returncode == 0 and Path(r.stdout).exists():
+            return r.stdout
+    for f in ("C:/Windows/Fonts/arialbd.ttf", "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+              "/Library/Fonts/Arial Bold.ttf"):
+        if Path(f).exists():
+            return f
+    return None
+
+
+def make_vertical(src: Path, out: Path, title: str = "") -> Path | None:
+    """9:16 (1080x1920) para TikTok/Shorts/Reels: vídeo no centro, fundo desfocado,
+    título em cima."""
+    vf = ("[0:v]split[a][b];"
+          "[a]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,"
+          "boxblur=20:2,eq=brightness=-0.15[bg];"
+          "[b]scale=1080:-2[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2")
+    txt = None
+    font = _font()
+    if title and font:
+        txt = out.with_suffix(".titulo.txt")
+        txt.write_text(title[:60])
+        f = font.replace("\\", "/").replace(":", "\\:")
+        t = str(txt.resolve()).replace("\\", "/").replace(":", "\\:")
+        vf += (f",drawtext=fontfile='{f}':textfile='{t}':fontsize=72:fontcolor=white:"
+               "borderw=5:bordercolor=black:x=(w-tw)/2:y=h*0.16")
+    vf += "[v]"
+    cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(src),
+           "-filter_complex", vf, "-map", "[v]", "-map", "0:a?",
+           "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p",
+           "-r", "30", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(out)]
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    if txt:
+        txt.unlink(missing_ok=True)
+    if res.returncode != 0:
+        log.error("versão vertical falhou: %s", res.stderr.strip()[-300:])
+        return None
+    log.info("📱 pronto para postar: %s", out.name)
+    return out

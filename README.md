@@ -6,7 +6,7 @@ Acompanha uma live da **Twitch** ou do **YouTube** e corta clipes **enquanto ela
 - **Comando no chat:** moderador ou streamer digita `!clip` e o clipe é salvo.
 - **Manual:** aperte **ENTER** no terminal (pode digitar um nome antes: `jogada incrível` + ENTER).
 
-Cada clipe vira um `.mp4` em `clipes/`, com 30 s antes e 10 s depois do momento (configurável). O vídeo não é recodificado, então o corte é instantâneo e sem perda de qualidade.
+Cada clipe sai em dois arquivos: o original e um `_vertical.mp4` (1080x1920, fundo desfocado e título em cima) pronto para TikTok, Shorts e Reels. Ficam em `clipes/`, com 30 s antes e 10 s depois do momento (configurável). O vídeo não é recodificado, então o corte é instantâneo e sem perda de qualidade.
 
 ## Instalação
 
@@ -26,7 +26,12 @@ python -m clipador https://www.twitch.tv/casimiro
 # YouTube: link da live, ou /@canal/live para pegar a live atual do canal
 python -m clipador "https://www.youtube.com/watch?v=XXXXXXXXXXX"
 python -m clipador https://www.youtube.com/@canal/live
+
+# várias lives ao mesmo tempo (cada uma vira uma subpasta em clipes/)
+python -m clipador gaules casimiro "https://youtu.be/XXXXXXXXXXX" https://www.youtube.com/@canal/live
 ```
+
+Com várias lives: **ENTER** corta todas; `2` + ENTER corta só a live 2; `2 jogada absurda` + ENTER corta a live 2 com esse título.
 
 Opções úteis:
 
@@ -39,6 +44,7 @@ Opções úteis:
 | `--aquecimento` | 60 | segundos observando o chat antes do 1º corte automático |
 | `--comando` | `!clip` | comando de chat para mods (`--comando ''` desliga) |
 | `--sem-chat` | — | só corte manual |
+| `--sem-vertical` | — | não gera a versão 9:16 |
 | `-q` / `--qualidade` | best | qualidade do streamlink (`720p`, `480p`…) |
 | `-o` / `--saida` | clipes | pasta de saída |
 
