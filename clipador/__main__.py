@@ -43,6 +43,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--melhor-a-cada", type=float, default=6,
                    help="sem clipe por N minutos? corta o melhor momento do período (0 desliga)")
     p.add_argument("--assinatura", default="@viceclips.vibr", help="texto no rodapé do clipe")
+    p.add_argument("--curadoria", type=float, default=4,
+                   help="a cada N minutos, edita só o melhor momento de cada live")
+    p.add_argument("--nota", type=float, default=2.0,
+                   help="nota mínima para um momento virar clipe (maior = mais exigente)")
     p.add_argument("--sem-audio", action="store_true",
                    help="não corta por pico de volume (grito, explosão)")
     p.add_argument("--sem-vertical", action="store_true",
@@ -76,8 +80,8 @@ def chat_loop(args, target: Target, clipper: Clipper, stop: threading.Event) -> 
             fired = det.tick(now)
             if fired:  # disparo também pode vir só do relógio
                 cat = det.category(fired)
-                if clipper.auto_clip(fired, cat or "hype", title_for(cat, clipper.label)):
-                    log.info("🔥 [%s] chat: %s", target.name, cat or "hype")
+                clipper.auto_clip(fired, cat or "hype", title_for(cat, clipper.label),
+                                  det.current(fired) / max(det.baseline, 1.0))
             ratio = det.current(now) / max(det.baseline, 1.0)
             if ratio > best["ratio"] and now - started > args.aquecimento:
                 best.update(ratio=ratio, ts=now)
@@ -85,7 +89,8 @@ def chat_loop(args, target: Target, clipper: Clipper, stop: threading.Event) -> 
             since = now - max(clipper._last_auto, started)
             if args.melhor_a_cada and since > args.melhor_a_cada * 60 and best["ratio"] >= 1.2:
                 cat = det.category(best["ts"])
-                if clipper.auto_clip(best["ts"], cat or "destaque", title_for(cat, clipper.label)):
+                if clipper.auto_clip(best["ts"], cat or "destaque", title_for(cat, clipper.label),
+                                     best["ratio"]):
                     log.info("⭐ [%s] melhor momento dos últimos %d min (%.1fx o normal)",
                              target.name, args.melhor_a_cada, best["ratio"])
                 best.update(ratio=0.0, ts=0.0)
@@ -107,7 +112,8 @@ def chat_loop(args, target: Target, clipper: Clipper, stop: threading.Event) -> 
         fired = det.add(msg.ts, msg.text)
         if fired:
             cat = det.category(fired)
-            if clipper.auto_clip(fired, cat or "hype", title_for(cat, clipper.label)):
+            if clipper.auto_clip(fired, cat or "hype", title_for(cat, clipper.label),
+                                 det.current(fired) / max(det.baseline, 1.0)):
                 log.info("🔥 [%s] chat: %s (%.0f vs normal %.1f)", target.name,
                          cat or "hype", det.current(fired), det.baseline)
 
@@ -122,7 +128,8 @@ def audio_loop(name: str, rec: Recorder, clipper: Clipper, args, stop: threading
             last = seg.end
             if seg.path.exists() and det.add(seg.end, mean_volume(seg.path)):
                 cat = chat_category(seg.end) if chat_category else ""
-                if clipper.auto_clip(seg.end, cat or "audio", title_for(cat, clipper.label)):
+                if clipper.auto_clip(seg.end, cat or "audio", title_for(cat, clipper.label),
+                                     det.last_jump / 9.0, "audio"):
                     log.info("🔊 [%s] pico de áudio (%s)", name, cat or "sem chat")
         stop.wait(1)
 
@@ -150,13 +157,15 @@ def main(argv: list[str] | None = None) -> int:
         rec = Recorder(
             out / ".buffer", stream_url=None if is_src else t.stream_url,
             quality=args.qualidade, source=t if is_src else None,
-            buffer_seconds=max(args.buffer, int(args.antes + args.depois + 30)),
+            buffer_seconds=max(args.buffer, int(args.antes + args.depois + 30),
+                               int(args.curadoria * 60 + 90)),
             realtime_input=is_src,
         )
         clipper = Clipper(rec, out, args.antes, args.depois,
                           vertical=not args.sem_vertical, label=name)
         clipper.cooldown = args.intervalo
         clipper.signature = args.assinatura
+        clipper.start_curator(args.curadoria * 60, args.nota)
         rec.start()
         lives.append((name, rec, clipper))
         log.info("[%d] gravando %s", n, name if is_src else f"{name} ({t.platform})")

@@ -215,6 +215,7 @@ class LoudnessDetector:
         if self._baseline is None:
             self._baseline = mean_db
             return False
+        self.last_jump = mean_db - self._baseline
         fired = ts - self._started >= self.warmup and mean_db >= self._baseline + self.jump_db
         self._baseline += self.alpha * (mean_db - self._baseline)
         return fired

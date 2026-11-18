@@ -42,15 +42,48 @@ class Clipper:
         self.cooldown = 45.0
         self._last_auto = float("-inf")
         self._auto_lock = threading.Lock()
+        self._cands: list = []
 
-    def auto_clip(self, moment: float, reason: str, title: str) -> bool:
-        """Clipe automático (chat ou áudio), sem repetir o mesmo momento."""
+    def auto_clip(self, moment: float, reason: str, title: str,
+                  score: float = 1.0, source: str = "chat") -> bool:
+        """Registra um candidato; a curadoria escolhe o melhor de cada janela."""
         with self._auto_lock:
-            if moment - self._last_auto < self.cooldown:
-                return False
-            self._last_auto = moment
-        threading.Thread(target=self.clip, args=(moment, reason, title), daemon=True).start()
+            self._cands.append((moment, score, reason, title, source))
         return True
+
+    def start_curator(self, window: float = 240, min_score: float = 2.0) -> None:
+        self._cands: list = getattr(self, "_cands", [])
+        threading.Thread(target=self._curate, args=(window, min_score), daemon=True).start()
+
+    def _curate(self, window: float, min_score: float) -> None:
+        cats = ("engracado", "assalto", "tenso", "meme")
+        while True:
+            time.sleep(window)
+            with self._auto_lock:
+                cands, self._cands = self._cands, []
+            if not cands:
+                continue
+            audio = [c for c in cands if c[4] == "audio"]
+            best, best_score = None, 0.0
+            for c in cands:
+                sc = c[1] + (0.5 if c[2] in cats else 0)
+                if c[4] != "audio":  # chat + áudio juntos = momento forte
+                    near = [a for a in audio if -20 <= c[0] - a[0] <= 5]
+                    if near:
+                        sc += 1.0 + max(a[1] for a in near) * 0.5
+                if sc > best_score:
+                    best, best_score = c, sc
+            if best and best_score >= min_score:
+                moment, _, reason, title, source = best
+                # chat reage ~10s depois do acontecimento; áudio é na hora
+                pre, post = (18, 10) if source == "audio" else (25, 5)
+                log.info("🏆 [%s] melhor momento da janela: %s (nota %.1f)",
+                         self.label, reason, best_score)
+                threading.Thread(target=self.clip, args=(moment, reason, title, pre, post),
+                                 daemon=True).start()
+            else:
+                log.info("· [%s] nada forte o bastante nesta janela (melhor %.1f)",
+                         self.label, best_score)
 
     def clip_async(self, moment: float, reason: str = "manual") -> threading.Thread:
         """Agenda um clipe ao redor de ``moment`` sem travar o chat."""
@@ -58,8 +91,12 @@ class Clipper:
         t.start()
         return t
 
-    def clip(self, moment: float, reason: str = "manual", title: str = "") -> Path | None:
-        start, end = moment - self.pre, moment + self.post
+    def clip(self, moment: float, reason: str = "manual", title: str = "",
+             pre: float | None = None, post: float | None = None) -> Path | None:
+        if reason != "manual":
+            self._last_auto = moment
+        start = moment - (self.pre if pre is None else pre)
+        end = moment + (self.post if post is None else post)
         # espera o "depois" ser gravado
         deadline = end + 30
         while self.recorder.latest_time() < end and time.time() < deadline:
