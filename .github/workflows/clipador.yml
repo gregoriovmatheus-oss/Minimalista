@@ -14,6 +14,9 @@ concurrency:
   group: clipador-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 jobs:
   clipar:
     runs-on: ubuntu-latest
@@ -25,12 +28,29 @@ jobs:
           python-version: "3.12"
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fontconfig fonts-dejavu-core
       - run: pip install -q -r requirements.txt
-      - name: Gravar e cortar
+      - name: Gravar e cortar (clipes vão saindo em Releases)
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          TAG="clipes-$GITHUB_RUN_ID"
+          gh release create "$TAG" --prerelease --target "$GITHUB_SHA" \
+            --title "Clipes $(TZ=America/Sao_Paulo date '+%d/%m %H:%M')" \
+            --notes "Clipes verticais prontos para postar. Novos aparecem aqui a cada ~1 min."
+          mkdir -p enviados
+          enviar() {
+            find clipes -name '*_vertical.mp4' -mmin +0.2 2>/dev/null | while read -r f; do
+              n="$(basename "$(dirname "$f")")_$(basename "$f")"
+              [ -e "enviados/$n" ] && continue
+              cp "$f" "enviados/$n" && gh release upload "$TAG" "enviados/$n" --clobber \
+                && echo "📤 publicado: $n"
+            done
+          }
+          ( while true; do sleep 60; enviar; done ) &
           python -m clipador $(grep -v '^\s*#' lives.txt | xargs) \
-            --duracao "${{ inputs.duracao || '180' }}" -o clipes \
+            --duracao "${{ inputs.duracao || '330' }}" -o clipes \
             --aquecimento 30 --minimo 10 \
-            --palavras "$(cat palavras.txt | tr '\n' ',' )" < /dev/null
+            --palavras "$(tr '\n' ',' < palavras.txt)" < /dev/null || true
+          sleep 5; enviar
       - name: Clipes verticais (prontos para postar)
         if: always()
         uses: actions/upload-artifact@v4
