@@ -53,9 +53,10 @@ jobs:
           touch comandos
           ( set +e; ultimo=""; while true; do
               sleep 8
-              # pedido = linha "CORTAR: <canal> <qualquer id>" no texto do release
-              p=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq .body 2>/dev/null \
-                | grep -m1 '^CORTAR:' | cut -d: -f2- | xargs)
+              # pedido = conteúdo de pedido.txt no branch ("<canal> <id único>")
+              p=$(gh api "repos/$GITHUB_REPOSITORY/contents/pedido.txt?ref=$GITHUB_REF_NAME" \
+                --jq .content 2>/dev/null | base64 -d 2>/dev/null | head -1 | xargs)
+              [ -z "$ultimo" ] && [ -n "$p" ] && ultimo="$p"  # ignora pedido antigo
               [ -z "$p" ] || [ "$p" = "$ultimo" ] && continue
               ultimo="$p"
               echo "✋ pedido: $p"
