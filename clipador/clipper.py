@@ -176,6 +176,9 @@ def find_facecam(src: Path) -> tuple[int, int, int, int] | None:
     return x0, y0, cw, ch
 
 
+_ENCODE = threading.Semaphore(2)
+
+
 def _wrap(text: str, width: int) -> list[str]:
     lines, cur = [], ""
     for w in text.split():
@@ -228,10 +231,11 @@ def make_vertical(src: Path, out: Path, title: str = "", footer: str = "") -> Pa
     vf += "[v]"
     cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(src),
            "-filter_complex", vf, "-map", "[v]", "-map", "0:a?",
-           "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p",
+           "-c:v", "libx264", "-preset", "superfast", "-crf", "22", "-pix_fmt", "yuv420p",
            "-r", "30", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart",
            "-f", "mp4", str(out) + ".part"]
-    res = subprocess.run(cmd, capture_output=True, text=True)
+    with _ENCODE:  # fila: no máximo 2 edições ao mesmo tempo
+        res = subprocess.run(cmd, capture_output=True, text=True)
     if res.returncode == 0:
         Path(str(out) + ".part").replace(out)  # só aparece quando está completo
     for txt in txts:
