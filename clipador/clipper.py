@@ -176,7 +176,7 @@ def find_facecam(src: Path) -> tuple[int, int, int, int] | None:
     return x0, y0, cw, ch
 
 
-_ENCODE = threading.Semaphore(2)
+_ENCODE = threading.Semaphore(3)
 
 
 def _wrap(text: str, width: int) -> list[str]:
@@ -193,22 +193,22 @@ def _wrap(text: str, width: int) -> list[str]:
 def make_vertical(src: Path, out: Path, title: str = "", footer: str = "") -> Path | None:
     """9:16 (1080x1920) para TikTok/Shorts/Reels: vídeo no centro, fundo desfocado,
     título em cima."""
-    bg = ("[a]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,"
+    bg = ("[a]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,"
           "boxblur=20:2,eq=brightness=-0.15[bg];")
     cam = find_facecam(src)
     if cam:
         # câmera do streamer em cima, jogo inteiro embaixo
         x, y, w, h = cam
         vf = ("[0:v]split=3[a][b][c];" + bg +
-              f"[b]crop={w}:{h}:{x}:{y},scale=1080:810[cam];"
-              "[c]scale=1080:-2[game];"
-              "[bg][cam]overlay=0:230[t];[t][game]overlay=0:1080")
-        title_y, footer_y = "40", "1735"
+              f"[b]crop={w}:{h}:{x}:{y},scale=720:540[cam];"
+              "[c]scale=720:-2[game];"
+              "[bg][cam]overlay=0:153[t];[t][game]overlay=0:720")
+        title_y, footer_y = "27", "1157"
         log.info("📷 câmera do streamer encontrada em x=%d y=%d", x, y)
     else:
         # sem câmera: jogo inteiro (sem cortar os cantos) no meio
         vf = ("[0:v]split[a][b];" + bg +
-              "[b]scale=1080:-2[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2")
+              "[b]scale=720:-2[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2")
         title_y, footer_y = "h*0.11", "h*0.80"
     txts: list[Path] = []
     font = _font()
@@ -216,22 +216,22 @@ def make_vertical(src: Path, out: Path, title: str = "", footer: str = "") -> Pa
         f = font.replace("\\", "/").replace(":", "\\:")
         # gancho em até 2 linhas, cada uma numa tarja vermelha; assinatura embaixo
         lines = _wrap(title.upper(), 18)[:2] if title else []
-        items = [(ln, 78, f"({title_y})+{i * 110}", True) for i, ln in enumerate(lines)]
+        items = [(ln, 52, f"({title_y})+{i * 74}", True) for i, ln in enumerate(lines)]
         if footer:
-            items.append((footer, 52, footer_y, False))
+            items.append((footer, 36, footer_y, False))
         for i, (text, size, y, box) in enumerate(items):
             txt = out.with_suffix(f".t{i}.txt")
             txt.write_text(text)
             txts.append(txt)
             t = str(txt.resolve()).replace("\\", "/").replace(":", "\\:")
-            style = ("box=1:boxcolor=0xE11D48@0.95:boxborderw=18:borderw=3:bordercolor=black"
+            style = ("box=1:boxcolor=0xE11D48@0.95:boxborderw=12:borderw=3:bordercolor=black"
                      if box else "borderw=5:bordercolor=black")
             vf += (f",drawtext=fontfile='{f}':textfile='{t}':fontsize={size}:fontcolor=white:"
                    f"{style}:x=(w-tw)/2:y={y}")
     vf += "[v]"
     cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(src),
            "-filter_complex", vf, "-map", "[v]", "-map", "0:a?",
-           "-c:v", "libx264", "-preset", "superfast", "-crf", "22", "-pix_fmt", "yuv420p",
+           "-c:v", "libx264", "-preset", "superfast", "-crf", "23", "-pix_fmt", "yuv420p",
            "-r", "30", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart",
            "-f", "mp4", str(out) + ".part"]
     with _ENCODE:  # fila: no máximo 2 edições ao mesmo tempo
