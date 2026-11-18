@@ -68,3 +68,9 @@ O corte tem precisão de ~2 s (o tamanho de cada pedaço).
 pip install pytest
 python -m pytest
 ```
+
+## Rodar pelo celular (GitHub Actions)
+
+1. Edite `lives.txt` (um link por linha) e, se quiser, `palavras.txt` (palavras do chat que indicam o momento a clipar, ex: `assalto`).
+2. Faça commit: a gravação começa sozinha e dura 3 h (ou rode manualmente em **Actions → Clipador → Run workflow** e escolha os minutos).
+3. Quando terminar, abra a execução em **Actions** e baixe `clipes-verticais` (prontos para postar) ou `clipes-originais`.

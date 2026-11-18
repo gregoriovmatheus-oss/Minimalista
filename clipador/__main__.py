@@ -43,6 +43,11 @@ def build_parser() -> argparse.ArgumentParser:
                    help="não gera a versão 9:16 pronta para TikTok/Shorts/Reels")
     p.add_argument("--fonte", action="append", default=[],
                    help="(teste) vídeo local no lugar de uma live; pode repetir")
+    p.add_argument("--palavras", default="",
+                   help="palavras extras que contam muito no chat, separadas por vírgula "
+                        "(ex: assalto,roubo,fuga)")
+    p.add_argument("--duracao", type=float, default=0,
+                   help="para sozinho depois de N minutos (0 = até a live acabar)")
     p.add_argument("-v", "--verbose", action="store_true")
     return p
 
@@ -52,6 +57,8 @@ def chat_loop(args, target: Target, clipper: Clipper, stop: threading.Event) -> 
         window=args.janela, threshold=args.sensibilidade, min_score=args.minimo,
         cooldown=args.intervalo, warmup=args.aquecimento,
     )
+    for w in filter(None, (x.strip().lower() for x in args.palavras.split(","))):
+        det.keywords[w] = 4.0
 
     def ticker() -> None:  # mantém a linha de base viva mesmo com chat parado
         while not stop.is_set():
@@ -107,13 +114,19 @@ def main(argv: list[str] | None = None) -> int:
             threading.Thread(target=chat_loop, args=(args, t, clipper, stop),
                              daemon=True).start()
 
+    t0 = time.time()
+
+    def expired() -> bool:
+        return bool(args.duracao) and time.time() - t0 > args.duracao * 60
+
     log.info("ENTER corta todas • '2' ou '2 texto' + ENTER corta só a live 2 • Ctrl+C sai")
     try:
         while True:
             line = sys.stdin.readline()
-            if not line:  # stdin fechado: só espera a gravação
-                while any(r.running for _, r, _ in lives):
+            if not line:  # stdin fechado (ex: GitHub Actions): só espera
+                while any(r.running for _, r, _ in lives) and not expired():
                     time.sleep(1)
+                time.sleep(args.depois + 5)  # deixa clipes pendentes terminarem
                 break
             now = time.time()
             first, _, rest = line.strip().partition(" ")

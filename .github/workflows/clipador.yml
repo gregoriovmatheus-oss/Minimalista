@@ -1,0 +1,49 @@
+name: Clipador
+
+# Edite lives.txt (um link por linha) e faça commit: a gravação começa sozinha.
+on:
+  push:
+    paths: [lives.txt, palavras.txt, .github/workflows/clipador.yml]
+  workflow_dispatch:
+    inputs:
+      duracao:
+        description: "Minutos de gravação (máx. 340)"
+        default: "180"
+
+concurrency:
+  group: clipador-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  clipar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fontconfig fonts-dejavu-core
+      - run: pip install -q -r requirements.txt
+      - name: Gravar e cortar
+        run: |
+          python -m clipador $(grep -v '^\s*#' lives.txt | xargs) \
+            --duracao "${{ inputs.duracao || '180' }}" -o clipes \
+            --aquecimento 30 --minimo 10 \
+            --palavras "$(cat palavras.txt | tr '\n' ',' )" < /dev/null
+      - name: Clipes verticais (prontos para postar)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clipes-verticais
+          path: clipes/**/*_vertical.mp4
+          if-no-files-found: warn
+      - name: Clipes originais
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clipes-originais
+          path: |
+            clipes/**/*.mp4
+            !clipes/**/*_vertical.mp4
+          if-no-files-found: warn
