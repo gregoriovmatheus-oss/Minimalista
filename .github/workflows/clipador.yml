@@ -44,12 +44,14 @@ jobs:
               cp "$f" "enviados/$n" && gh release upload "$TAG" "enviados/$n" --clobber \
                 && echo "📤 publicado: $n"
             done
+            [ -f clipador.log ] && cp clipador.log enviados/log.txt \
+              && gh release upload "$TAG" enviados/log.txt --clobber >/dev/null 2>&1
           }
           ( while true; do sleep 60; enviar; done ) &
           python -m clipador $(grep -v '^\s*#' lives.txt | xargs) \
             --duracao "${{ inputs.duracao || '330' }}" -o clipes \
             --aquecimento 30 --minimo 10 \
-            --palavras "$(tr '\n' ',' < palavras.txt)" < /dev/null || true
+            --palavras "$(tr '\n' ',' < palavras.txt)" < /dev/null 2>&1 | tee clipador.log || true
           sleep 5; enviar
       - name: Clipes verticais (prontos para postar)
         if: always()

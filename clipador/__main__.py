@@ -30,8 +30,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--depois", type=float, default=10, help="segundos depois do momento (padrão: 10)")
     p.add_argument("--buffer", type=int, default=180, help="segundos guardados em disco (padrão: 180)")
     p.add_argument("--sem-chat", action="store_true", help="desliga o corte automático pelo chat")
-    p.add_argument("--sensibilidade", type=float, default=2.5,
-                   help="quantas vezes acima do normal o chat precisa ficar (padrão: 2.5)")
+    p.add_argument("--sensibilidade", type=float, default=1.7,
+                   help="quantas vezes acima do normal o chat precisa ficar (padrão: 1.7)")
     p.add_argument("--minimo", type=float, default=15, help="pontuação mínima na janela (padrão: 15)")
     p.add_argument("--janela", type=float, default=10, help="janela do chat em segundos (padrão: 10)")
     p.add_argument("--intervalo", type=float, default=45, help="tempo mínimo entre clipes automáticos")
@@ -39,6 +39,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="segundos observando o chat antes de cortar (padrão: 60)")
     p.add_argument("--comando", default="!clip",
                    help="comando que mods/streamer usam no chat para cortar ('' desliga)")
+    p.add_argument("--melhor-a-cada", type=float, default=6,
+                   help="sem clipe por N minutos? corta o melhor momento do período (0 desliga)")
     p.add_argument("--sem-audio", action="store_true",
                    help="não corta por pico de volume (grito, explosão)")
     p.add_argument("--sem-vertical", action="store_true",
@@ -62,9 +64,33 @@ def chat_loop(args, target: Target, clipper: Clipper, stop: threading.Event) -> 
     for w in filter(None, (x.strip().lower() for x in args.palavras.split(","))):
         det.keywords[w] = 4.0
 
-    def ticker() -> None:  # mantém a linha de base viva mesmo com chat parado
+    best = {"ratio": 0.0, "ts": 0.0}
+    started = time.time()
+
+    def ticker() -> None:  # mantém a linha de base viva e garante clipes
+        last_report = time.time()
         while not stop.is_set():
-            det.tick(time.time())
+            now = time.time()
+            fired = det.tick(now)
+            if fired:  # disparo também pode vir só do relógio
+                cat = det.category(fired)
+                if clipper.auto_clip(fired, cat or "hype", title_for(cat)):
+                    log.info("🔥 [%s] chat: %s", target.name, cat or "hype")
+            ratio = det.current(now) / max(det.baseline, 1.0)
+            if ratio > best["ratio"] and now - started > args.aquecimento:
+                best.update(ratio=ratio, ts=now)
+            # nenhum clipe há muito tempo: corta o momento mais diferente do período
+            since = now - max(clipper._last_auto, started)
+            if args.melhor_a_cada and since > args.melhor_a_cada * 60 and best["ratio"] >= 1.2:
+                cat = det.category(best["ts"])
+                if clipper.auto_clip(best["ts"], cat or "destaque", title_for(cat)):
+                    log.info("⭐ [%s] melhor momento dos últimos %d min (%.1fx o normal)",
+                             target.name, args.melhor_a_cada, best["ratio"])
+                best.update(ratio=0.0, ts=0.0)
+            if now - last_report > 60:
+                last_report = now
+                log.info("📊 [%s] chat agora %.0f / normal %.0f (%.1fx)",
+                         target.name, det.current(now), det.baseline, ratio)
             stop.wait(1)
 
     threading.Thread(target=ticker, daemon=True).start()
