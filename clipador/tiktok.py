@@ -35,7 +35,7 @@ def _req(url: str, data: bytes | None = None, headers: dict | None = None,
 
 
 def _openssl(args: list[str], data: bytes) -> bytes:
-    secret = os.environ["TIKTOK_CLIENT_SECRET"]
+    secret = os.environ["TIKTOK_CLIENT_SECRET"].strip()
     return subprocess.run(
         ["openssl", "enc", "-aes-256-cbc", "-pbkdf2", "-a", "-A", *args, "-pass", "env:K"],
         input=data, capture_output=True, check=True, env={**os.environ, "K": secret},
@@ -51,18 +51,22 @@ def _load_refresh() -> str:
 
 
 def _token(form: dict) -> dict:
-    form = {"client_key": os.environ["TIKTOK_CLIENT_KEY"],
-            "client_secret": os.environ["TIKTOK_CLIENT_SECRET"], **form}
+    form = {"client_key": os.environ["TIKTOK_CLIENT_KEY"].strip(),
+            "client_secret": os.environ["TIKTOK_CLIENT_SECRET"].strip(), **form}
     res = _req(f"{API}/oauth/token/", urllib.parse.urlencode(form).encode(),
-               {"Content-Type": "application/x-www-form-urlencoded"})
+               {"Content-Type": "application/x-www-form-urlencoded",
+                "Cache-Control": "no-cache"})
     if "access_token" not in res:
         raise RuntimeError(f"login TikTok falhou: {res}")
     return res
 
 
 def login(code: str, redirect_uri: str) -> None:
-    res = _token({"code": code, "grant_type": "authorization_code",
-                  "redirect_uri": redirect_uri})
+    form = {"code": code, "grant_type": "authorization_code", "redirect_uri": redirect_uri}
+    ver = Path("tiktok_verifier.txt")
+    if ver.exists():  # PKCE
+        form["code_verifier"] = ver.read_text().strip()
+    res = _token(form)
     _save_refresh(res["refresh_token"])
     print("TikTok conectado (escopos: %s)" % res.get("scope"))
 
