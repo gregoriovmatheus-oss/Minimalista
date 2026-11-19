@@ -91,7 +91,13 @@ def card(title: str, narration: str, bg: Path | None = None) -> Path:
     out = _tmp("mp4")
     lines = _wrap(title.upper(), 16)[:4]
     txt = _texts(lines, f"(h-{len(lines) * 75})/2", 64) + _texts([ASSINATURA], "h*0.86", 34, False)
-    if bg:
+    if bg and bg.suffix.lower() in (".png", ".jpg", ".jpeg"):
+        # imagem de referência com zoom lento (efeito Ken Burns)
+        src = ["-loop", "1", "-t", f"{dur}", "-i", str(bg)]
+        base = (f"[0:v]scale=1440:2560:force_original_aspect_ratio=increase,crop=1440:2560,"
+                f"zoompan=z='min(1+0.0009*on,1.25)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
+                f":d=1:s={W}x{H}:fps=30,eq=brightness=-0.08")
+    elif bg:
         src = ["-ss", "1", "-t", f"{dur}", "-i", str(bg)]
         base = (f"[0:v]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
                 "boxblur=18:2,eq=brightness=-0.25,zoompan=z='1+0.0015*on':d=1:s=720x1280:fps=30")
@@ -168,8 +174,9 @@ CURIOSIDADES = [
 ]
 
 
-def curiosidades(out: Path, itens: list[tuple[str, str]] = CURIOSIDADES) -> Path:
-    return join([card(t, n) for t, n in itens], out)
+def curiosidades(out: Path, itens: list = CURIOSIDADES) -> Path:
+    """itens: (título, narração) ou (título, narração, imagem_de_fundo)."""
+    return join([card(i[0], i[1], Path(i[2]) if len(i) > 2 else None) for i in itens], out)
 
 
 if __name__ == "__main__":
