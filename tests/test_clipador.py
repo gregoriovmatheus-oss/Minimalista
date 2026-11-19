@@ -147,7 +147,7 @@ def test_grava_e_corta(tmp_path: Path):
     dur = float(subprocess.run(
         ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(out)],
         capture_output=True, text=True, check=True).stdout)
-    assert 5 <= dur <= 9, dur
+    assert dur >= 5, dur  # o original é a janela larga (contexto)
 
 
 def test_exclamacao_e_esticada():
@@ -196,3 +196,17 @@ def test_sem_camera(monkeypatch):
     frames = [(1920, 1080, [(100 + i * 150, 300, 80, 80)]) for i in range(8)]  # só rosto do jogo
     monkeypatch.setattr(c, "_face_boxes", lambda src: frames)
     assert c.find_facecam(Path("x")) is None
+
+
+def test_corte_inteligente():
+    from clipador.clipper import smart_cut
+    # frase começa em 20s (pausa antes), momento em 45s, reação termina em 52s
+    words = [(5, 6, "a"), (6.2, 7, "b"), (20, 21, "começa"), (21.2, 30, "x"), (30.2, 44, "y"),
+             (45, 47, "NÃO"), (47.1, 52, "KKKK"), (55, 56, "outra")]
+    ss, to = smart_cut(words, 45, 25, 5)
+    assert 19 <= ss <= 20.5 and 52 <= to <= 53.5
+
+
+def test_corte_sem_fala():
+    from clipador.clipper import smart_cut
+    assert smart_cut([], 45, 25, 5) == (20, 50)

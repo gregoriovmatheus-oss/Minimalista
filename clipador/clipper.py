@@ -95,8 +95,11 @@ class Clipper:
              pre: float | None = None, post: float | None = None) -> Path | None:
         if reason != "manual":
             self._last_auto = moment
-        start = moment - (self.pre if pre is None else pre)
-        end = moment + (self.post if post is None else post)
+        pre_d = self.pre if pre is None else pre
+        post_d = self.post if post is None else post
+        # janela larga: a fala decide depois onde começa e termina o clipe
+        start = moment - max(pre_d, 45)
+        end = moment + max(post_d, 15)
         # espera o "depois" ser gravado
         deadline = end + 30
         while self.recorder.latest_time() < end and time.time() < deadline:
@@ -138,14 +141,18 @@ class Clipper:
                     else hook("", self.label)
             vert = out.with_name(out.stem + "_vertical.mp4")
             words = []
+            ss, to = max(0.0, moment - segs[0].start - pre_d), moment - segs[0].start + post_d
             try:
                 from .legenda import transcribe, transcript_text
                 words = transcribe(out)
+                m = moment - segs[0].start  # posição do momento dentro da janela
+                ss, to = smart_cut(words, m, pre_d, post_d)
+                words = [(a - ss, b - ss, w) for a, b, w in words if ss <= a < to]
                 vert.with_suffix(".txt").write_text(
-                    f"{self.label} | {reason} | {transcript_text(words)}\n")
+                    f"{self.label} | {reason} | {to - ss:.0f}s | {transcript_text(words)}\n")
             except Exception as e:  # legenda é bônus: nunca derruba o clipe
                 log.warning("transcrição falhou: %s", e)
-            make_vertical(out, vert, title, self.signature, words)
+            make_vertical(out, vert, title, self.signature, words, ss, to - ss)
         return out
 
 
@@ -236,8 +243,36 @@ def _wrap(text: str, width: int) -> list[str]:
     return lines + ([cur] if cur else [])
 
 
+def smart_cut(words: list, m: float, pre: float, post: float) -> tuple[float, float]:
+    """Começa no início da frase que leva ao momento e termina quando a reação acaba.
+
+    words: [(início, fim, palavra)] relativos à janela; m: posição do momento.
+    """
+    ss, to = max(0.0, m - pre), m + post
+    if not words:
+        return ss, to
+    # inícios de frase: palavra precedida de pausa >= 0.7s (ou a primeira)
+    starts = [w[0] for i, w in enumerate(words)
+              if i == 0 or w[0] - words[i - 1][1] >= 0.7]
+    cand = [t for t in starts if m - 38 <= t <= m - 8]
+    if cand:
+        ss = max(0.0, min(cand, key=lambda t: abs(t - (m - 22))) - 0.3)
+    # fim da reação: primeira pausa >= 1.0s depois de m+3
+    for i in range(1, len(words)):
+        gap_start = words[i - 1][1]
+        if gap_start >= m + 3 and words[i][0] - gap_start >= 1.0:
+            to = gap_start + 0.8
+            break
+    else:
+        if words[-1][1] > m:
+            to = words[-1][1] + 0.8
+    to = min(max(to, m + 4), m + 15)
+    return ss, to
+
+
 def make_vertical(src: Path, out: Path, title: str = "", footer: str = "",
-                  words: list | None = None) -> Path | None:
+                  words: list | None = None, ss: float = 0.0,
+                  dur: float | None = None) -> Path | None:
     """9:16 (1080x1920) para TikTok/Shorts/Reels: vídeo no centro, fundo desfocado,
     título em cima."""
     bg = ("[a]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,"
@@ -284,7 +319,8 @@ def make_vertical(src: Path, out: Path, title: str = "", footer: str = "",
             txts.append(ass)
             vf += ",subtitles='" + str(ass.resolve()).replace(":", "\\:") + "'"
     vf += "[v]"
-    cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(src),
+    cut = ["-ss", f"{ss:.2f}"] + (["-t", f"{dur:.2f}"] if dur else [])
+    cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", *cut, "-i", str(src),
            "-filter_complex", vf, "-map", "[v]", "-map", "0:a?",
            "-c:v", "libx264", "-preset", "superfast", "-crf", "23", "-pix_fmt", "yuv420p",
            "-r", "30", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart",
