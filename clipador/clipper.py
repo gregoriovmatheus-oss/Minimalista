@@ -136,7 +136,16 @@ class Clipper:
             if not title:
                 title = reason if reason != "manual" and not reason.startswith("chat-") \
                     else hook("", self.label)
-            make_vertical(out, out.with_name(out.stem + "_vertical.mp4"), title, self.signature)
+            vert = out.with_name(out.stem + "_vertical.mp4")
+            words = []
+            try:
+                from .legenda import transcribe, transcript_text
+                words = transcribe(out)
+                vert.with_suffix(".txt").write_text(
+                    f"{self.label} | {reason} | {transcript_text(words)}\n")
+            except Exception as e:  # legenda é bônus: nunca derruba o clipe
+                log.warning("transcrição falhou: %s", e)
+            make_vertical(out, vert, title, self.signature, words)
         return out
 
 
@@ -227,7 +236,8 @@ def _wrap(text: str, width: int) -> list[str]:
     return lines + ([cur] if cur else [])
 
 
-def make_vertical(src: Path, out: Path, title: str = "", footer: str = "") -> Path | None:
+def make_vertical(src: Path, out: Path, title: str = "", footer: str = "",
+                  words: list | None = None) -> Path | None:
     """9:16 (1080x1920) para TikTok/Shorts/Reels: vídeo no centro, fundo desfocado,
     título em cima."""
     bg = ("[a]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,"
@@ -241,12 +251,14 @@ def make_vertical(src: Path, out: Path, title: str = "", footer: str = "") -> Pa
               "[c]scale=720:-2[game];"
               "[bg][cam]overlay=0:153[t];[t][game]overlay=0:720")
         title_y, footer_y = "27", "1157"
+        sub_margin = 520  # entre a câmera e o jogo
         log.info("📷 câmera do streamer encontrada em x=%d y=%d", x, y)
     else:
         # sem câmera: jogo inteiro (sem cortar os cantos) no meio
         vf = ("[0:v]split[a][b];" + bg +
               "[b]scale=720:-2[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2")
         title_y, footer_y = "h*0.11", "h*0.80"
+        sub_margin = 400  # logo abaixo do jogo
     txts: list[Path] = []
     font = _font()
     if font:
@@ -265,6 +277,12 @@ def make_vertical(src: Path, out: Path, title: str = "", footer: str = "") -> Pa
                      if box else "borderw=5:bordercolor=black")
             vf += (f",drawtext=fontfile='{f}':textfile='{t}':fontsize={size}:fontcolor=white:"
                    f"{style}:x=(w-tw)/2:y={y}")
+    if words:
+        from .legenda import write_ass
+        ass = write_ass(words, out.with_suffix(".ass"), sub_margin)
+        if ass:
+            txts.append(ass)
+            vf += ",subtitles='" + str(ass.resolve()).replace(":", "\\:") + "'"
     vf += "[v]"
     cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(src),
            "-filter_complex", vf, "-map", "[v]", "-map", "0:a?",

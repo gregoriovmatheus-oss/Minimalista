@@ -26,7 +26,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fontconfig fonts-dejavu-core
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fontconfig fonts-dejavu-core libass9
       - run: pip install -q -r requirements.txt
       - name: Gravar e cortar (clipes vão saindo em Releases)
         env:
@@ -46,6 +46,9 @@ jobs:
               [ -e "enviados/$n" ] && continue
               cp "$f" "enviados/$n" && gh release upload "$TAG" "enviados/$n" --clobber \
                 && echo "📤 publicado: $n"
+              t="${f%.mp4}.txt"
+              [ -f "$t" ] && cp "$t" "enviados/${n%.mp4}.txt" \
+                && gh release upload "$TAG" "enviados/${n%.mp4}.txt" --clobber >/dev/null 2>&1
               if [ -n "$TIKTOK_CLIENT_KEY" ] && [ -f tiktok_token.enc ]; then
                 python -m clipador.tiktok enviar "enviados/$n" 2>&1 | tail -2
                 if ! git diff --quiet tiktok_token.enc; then  # token renovado
