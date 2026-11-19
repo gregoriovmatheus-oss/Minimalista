@@ -230,6 +230,7 @@ def find_facecam(src: Path) -> tuple[int, int, int, int] | None:
 
 
 _ENCODE = threading.Semaphore(3)
+BURN_SUBS = False  # legenda na tela desligada (a transcrição segue para a escolha)
 
 
 def _wrap(text: str, width: int) -> list[str]:
@@ -312,7 +313,7 @@ def make_vertical(src: Path, out: Path, title: str = "", footer: str = "",
                      if box else "borderw=5:bordercolor=black")
             vf += (f",drawtext=fontfile='{f}':textfile='{t}':fontsize={size}:fontcolor=white:"
                    f"{style}:x=(w-tw)/2:y={y}")
-    if words:
+    if words and BURN_SUBS:
         from .legenda import write_ass
         ass = write_ass(words, out.with_suffix(".ass"), sub_margin)
         if ass:
