@@ -20,7 +20,7 @@ jobs:
           TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
           TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
         run: |
-          python -m clipador.tiktok login $(cat tiktok_code.txt)
+          read -r c r < tiktok_code.txt; python -m clipador.tiktok login "$c" "$r"
           git rm -q tiktok_code.txt
           git add tiktok_token.enc
           git -c user.name=clipador -c user.email=clipador@users.noreply.github.com \
