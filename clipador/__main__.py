@@ -185,7 +185,7 @@ def main(argv: list[str] | None = None) -> int:
         return bool(args.duracao) and time.time() - t0 > args.duracao * 60
 
     def watchdog() -> None:  # encerra sozinho no fim do tempo ou se todas caírem
-        while not expired() and any(r.running for _, r, _ in lives):
+        while not expired() and (any(r.running for _, r, _ in lives) or any(not r.source for _, r, _ in lives)):
             time.sleep(5)
         time.sleep(args.depois + 60)  # deixa clipes pendentes terminarem
         stop.set()
@@ -200,7 +200,7 @@ def main(argv: list[str] | None = None) -> int:
         while True:
             line = sys.stdin.readline()
             if not line:  # stdin fechado (ex: GitHub Actions): só espera
-                while any(r.running for _, r, _ in lives) and not expired():
+                while not expired() and (any(r.running for _, r, _ in lives) or any(not r.source for _, r, _ in lives)):
                     time.sleep(1)
                 time.sleep(args.depois + 5)  # deixa clipes pendentes terminarem
                 break
