@@ -16,6 +16,7 @@ concurrency:
 
 permissions:
   contents: write
+  actions: write  # para se reiniciar sozinho
 
 jobs:
   clipar:
@@ -99,3 +100,8 @@ jobs:
             clipes/**/*.mp4
             !clipes/**/*_vertical.mp4
           if-no-files-found: warn
+      - name: Reiniciar a gravação (nova rodada)
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run clipador.yml --ref "$GITHUB_REF_NAME"
