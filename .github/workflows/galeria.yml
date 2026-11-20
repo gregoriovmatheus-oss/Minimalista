@@ -1,0 +1,62 @@
+name: Galeria
+
+# Página com os clipes mais recentes para ver e baixar no celular (GitHub Pages).
+on:
+  schedule:
+    - cron: "*/20 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: galeria
+  cancel-in-progress: false
+
+jobs:
+  galeria:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: site
+          key: galeria-${{ github.run_id }}
+          restore-keys: galeria-
+      - run: sudo apt-get install -y -qq ffmpeg >/dev/null
+      - name: Baixar os 60 clipes mais recentes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p site
+          for id in $(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=6" --jq '.[].id'); do
+            gh api "repos/$GITHUB_REPOSITORY/releases/$id/assets?per_page=100" --paginate \
+              --jq '.[] | select(.name|test("_vertical\\.(mp4|txt)$")) | "\(.id) \(.name)"'
+          done > todos.txt
+          grep '\.mp4$' todos.txt | sort -t_ -k2,2r -k1,1 | awk '!v[$2]++' | head -60 > manter.txt
+          for f in site/*_vertical.*; do
+            [ -e "$f" ] || continue
+            s=$(basename "$f"); s=${s%.*}
+            grep -q " $s.mp4$" manter.txt || rm -f "$f"
+          done
+          while read -r id n; do
+            s=${n%.mp4}
+            [ -s "site/$n" ] || gh api -H "Accept: application/octet-stream" \
+              "repos/$GITHUB_REPOSITORY/releases/assets/$id" > "site/$n"
+            t=$(grep " $s.txt$" todos.txt | head -1 | cut -d' ' -f1)
+            [ -n "$t" ] && [ ! -s "site/$s.txt" ] && gh api -H "Accept: application/octet-stream" \
+              "repos/$GITHUB_REPOSITORY/releases/assets/$t" > "site/$s.txt"
+          done < manter.txt
+          python -m clipador.galeria site MELHORES.md
+          du -sh site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4
