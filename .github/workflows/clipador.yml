@@ -44,7 +44,7 @@ jobs:
           enviar() {
             find clipes -name '*_vertical.mp4' -mmin +0.2 2>/dev/null | while read -r f; do
               n="$(basename "$(dirname "$f")")_$(basename "$f")"
-              [ -e "enviados/$n" ] && continue
+              [ -e "enviados/$n" ] || [ -e "descartados/$n" ] && continue
               cp "$f" "enviados/$n" && gh release upload "$TAG" "enviados/$n" --clobber \
                 && echo "📤 publicado: $n"
               t="${f%.mp4}.txt"
@@ -65,6 +65,29 @@ jobs:
               && gh release upload "$TAG" enviados/log.txt --clobber >/dev/null 2>&1
           }
           ( set +e; while true; do sleep 45; enviar || true; done ) &
+          # de hora em hora: nota cada clipe novo, apaga os fracos e separa os
+          # melhores (~40%) no release fixo "melhores"
+          mkdir -p descartados; touch avaliados.lst
+          gh release view melhores >/dev/null 2>&1 || gh release create melhores --latest=false \
+            --title "⭐ Melhores (seleção automática de hora em hora)" \
+            --notes "Só os clipes que passaram na seleção: fala, reação do streamer, pico do chat e tipo do momento. Os fracos são apagados sozinhos."
+          limpar() {
+            ls enviados/*_vertical.mp4 2>/dev/null | xargs -rn1 basename | sed 's/\.mp4$//' \
+              | grep -vxF -f avaliados.lst > novos.lst
+            [ -s novos.lst ] || return 0
+            python -m clipador.ranking selecionar enviados novos.lst 0.4 | while read -r acao n nota; do
+              echo "🧹 $acao $n (nota $nota)"
+              if [ "$acao" = DESCARTAR ]; then
+                gh release delete-asset "$TAG" "$n.mp4" -y >/dev/null 2>&1
+                gh release delete-asset "$TAG" "$n.txt" -y >/dev/null 2>&1
+                mv enviados/"$n".* descartados/ 2>/dev/null
+              else
+                gh release upload melhores "enviados/$n.mp4" "enviados/$n.txt" --clobber >/dev/null 2>&1
+              fi
+            done
+            cat novos.lst >> avaliados.lst
+          }
+          ( set +e; while true; do sleep 3600; limpar || true; done ) &
           # pedidos de corte manual: asset "cortar.txt" no release (ex: "calango")
           touch comandos
           ( set +e; ultimo=""; while true; do
@@ -83,7 +106,7 @@ jobs:
             --aquecimento 30 --minimo 10 \
             --palavras "$(tr '\n' ',' < palavras.txt)" --intervalo 20 --curadoria 6 \
             < <(tail -n0 -F comandos) 2>&1 | tee clipador.log || true
-          sleep 5; enviar
+          sleep 5; enviar; limpar
       - name: Clipes verticais (prontos para postar)
         if: always()
         uses: actions/upload-artifact@v4
