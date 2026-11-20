@@ -57,6 +57,9 @@ jobs:
                 fi
               fi
             done
+            python -m clipador.indice enviados "$GITHUB_REPOSITORY" "$TAG" > notas.new 2>/dev/null \
+              && ! cmp -s notas.new notas.md && mv notas.new notas.md \
+              && gh release edit "$TAG" --notes-file notas.md >/dev/null 2>&1
             [ -f clipador.log ] && cp clipador.log enviados/log.txt \
               && gh release upload "$TAG" enviados/log.txt --clobber >/dev/null 2>&1
           }
@@ -77,7 +80,7 @@ jobs:
           python -m clipador $(grep -v '^\s*#' lives.txt | xargs) \
             --duracao "${{ inputs.duracao || '330' }}" -o clipes \
             --aquecimento 30 --minimo 10 \
-            --palavras "$(tr '\n' ',' < palavras.txt)" --intervalo 20 --curadoria 3 \
+            --palavras "$(tr '\n' ',' < palavras.txt)" --intervalo 20 --curadoria 6 \
             < <(tail -n0 -F comandos) 2>&1 | tee clipador.log || true
           sleep 5; enviar
       - name: Clipes verticais (prontos para postar)
