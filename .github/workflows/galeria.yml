@@ -32,12 +32,13 @@ jobs:
           key: galeria-${{ github.run_id }}
           restore-keys: galeria-
       - run: sudo apt-get install -y -qq ffmpeg >/dev/null
-      - name: Baixar os 60 clipes mais recentes
+      - name: Baixar os 60 melhores mais recentes
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p site
-          for id in $(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=6" --jq '.[].id'); do
+          # só a seleção automática (release "melhores"): a galeria mostra apenas os bons
+          for id in $(gh api "repos/$GITHUB_REPOSITORY/releases/tags/melhores" --jq '.id'); do
             gh api "repos/$GITHUB_REPOSITORY/releases/$id/assets?per_page=100" --paginate \
               --jq '.[] | select(.name|test("_vertical\\.(mp4|txt)$")) | "\(.id) \(.name)"'
           done > todos.txt
