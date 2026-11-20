@@ -17,7 +17,7 @@ EMOJI = {"engracado": "😂", "assalto": "💰", "tenso": "😱", "meme": "🤡"
 
 def linha(txt: Path, base: str) -> tuple[str, str, bool]:
     stem = txt.name.removesuffix(".txt")
-    partes = [p.strip() for p in txt.read_text(errors="ignore").split("|", 3)]
+    partes = [p.strip() for p in (txt.read_text(errors="ignore").splitlines() or [""])[0].split("|", 3)]
     nome, motivo, dur, fala = (partes + [""] * 4)[:4]
     try:  # alanzoka_20261119-213032_destaque_vertical
         hhmmss = stem.split("_")[1].split("-")[1]

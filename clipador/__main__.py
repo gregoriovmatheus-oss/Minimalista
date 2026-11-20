@@ -67,6 +67,7 @@ def chat_loop(args, target: Target, clipper: Clipper, stop: threading.Event) -> 
         window=args.janela, threshold=args.sensibilidade, min_score=args.minimo,
         cooldown=args.intervalo, warmup=args.aquecimento,
     )
+    clipper.chat_log = det._texts  # o clipe guarda o que o chat disse
     for w in filter(None, (x.strip().lower() for x in args.palavras.split(","))):
         det.keywords[w] = 4.0
 

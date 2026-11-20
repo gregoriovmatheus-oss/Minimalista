@@ -148,8 +148,10 @@ class Clipper:
                 m = moment - segs[0].start  # posição do momento dentro da janela
                 ss, to = smart_cut(words, m, pre_d, post_d)
                 words = [(a - ss, b - ss, w) for a, b, w in words if ss <= a < to]
+                t0 = segs[0].start
                 vert.with_suffix(".txt").write_text(
-                    f"{self.label} | {reason} | {to - ss:.0f}s | {transcript_text(words)}\n")
+                    f"{self.label} | {reason} | {to - ss:.0f}s | {transcript_text(words)}\n"
+                    + chat_resumo(getattr(self, "chat_log", None), t0 + ss, t0 + to + 6))
             except Exception as e:  # legenda é bônus: nunca derruba o clipe
                 log.warning("transcrição falhou: %s", e)
             make_vertical(out, vert, title, self.signature, words, ss, to - ss)
@@ -337,3 +339,18 @@ def make_vertical(src: Path, out: Path, title: str = "", footer: str = "",
         return None
     log.info("📱 pronto para postar: %s", out.name)
     return out
+
+
+def chat_resumo(log_, a: float, b: float) -> str:
+    """Linha 'chat: N msgs | top: kkkk x12, que isso x5' do chat durante o clipe."""
+    if not log_:
+        return ""
+    from collections import Counter
+    from .detector import normalize
+    msgs = [t for ts, t in list(log_) if a <= ts <= b]
+    if not msgs:
+        return "chat: 0 msgs\n"
+    top = Counter(normalize(t) for t in msgs if normalize(t)).most_common(5)
+    rate = len(msgs) * 60 / max(b - a, 1)
+    return (f"chat: {len(msgs)} msgs ({rate:.0f}/min) | top: "
+            + ", ".join(f"{k} x{n}" for k, n in top) + "\n")
