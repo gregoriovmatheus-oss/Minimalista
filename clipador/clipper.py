@@ -151,7 +151,8 @@ class Clipper:
                 t0 = segs[0].start
                 vert.with_suffix(".txt").write_text(
                     f"{self.label} | {reason} | {to - ss:.0f}s | {transcript_text(words)}\n"
-                    + chat_resumo(getattr(self, "chat_log", None), t0 + ss, t0 + to + 6))
+                    + chat_resumo(getattr(self, "chat_log", None), t0 + ss, t0 + to + 6)
+                    + sinais(out, ss, to - ss))
             except Exception as e:  # legenda é bônus: nunca derruba o clipe
                 log.warning("transcrição falhou: %s", e)
             make_vertical(out, vert, title, self.signature, words, ss, to - ss)
@@ -347,10 +348,35 @@ def chat_resumo(log_, a: float, b: float) -> str:
         return ""
     from collections import Counter
     from .detector import normalize
-    msgs = [t for ts, t in list(log_) if a <= ts <= b]
+    todos = list(log_)
+    msgs = [t for ts, t in todos if a <= ts <= b]
     if not msgs:
         return "chat: 0 msgs\n"
     top = Counter(normalize(t) for t in msgs if normalize(t)).most_common(5)
     rate = len(msgs) * 60 / max(b - a, 1)
-    return (f"chat: {len(msgs)} msgs ({rate:.0f}/min) | top: "
+    # ritmo normal do chat nos 10 min antes do clipe
+    antes = [ts for ts, _ in todos if a - 600 <= ts < a]
+    base = len(antes) * 60 / max(a - (antes[0] if antes else a), 60) if antes else 0
+    vs = f" x{rate / base:.1f} do normal" if base else ""
+    return (f"chat: {len(msgs)} msgs ({rate:.0f}/min{vs}) | top: "
             + ", ".join(f"{k} x{n}" for k, n in top) + "\n")
+
+
+def sinais(path: Path, ss: float, dur: float) -> str:
+    """Linha 'sinais: pico +X dB | ação N/10s' — grito/risada e movimento na tela."""
+    import re as _re
+    import statistics
+    try:
+        a = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-ss", f"{ss}", "-t", f"{dur}",
+                            "-i", str(path), "-vn", "-af", "ebur128", "-f", "null", "-"],
+                           capture_output=True, text=True, timeout=120).stderr
+        m = [float(x) for x in _re.findall(r" M:\s*(-?[\d.]+)", a) if float(x) > -70]
+        pico = (sorted(m)[int(len(m) * 0.97)] - statistics.median(m)) if len(m) > 20 else 0.0
+        v = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-ss", f"{ss}", "-t", f"{dur}",
+                            "-i", str(path), "-an", "-vf",
+                            "scale=160:-2,fps=5,select='gt(scene,0.18)',metadata=print",
+                            "-f", "null", "-"], capture_output=True, text=True, timeout=120).stderr
+        acao = v.count("lavfi.scene_score") * 10 / max(dur, 1)
+        return f"sinais: pico +{pico:.0f} dB | acao {acao:.1f}/10s\n"
+    except Exception:  # sinal é bônus
+        return ""

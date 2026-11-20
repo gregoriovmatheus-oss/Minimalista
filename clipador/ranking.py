@@ -22,6 +22,14 @@ REACAO = ["meu deus", "nao e possivel", "caralho", "c*ralho", "porra", "p*rra", 
 RUIM = ["prime", "inscri", "sub ", "doacao", "doou", "pix", "loja", "adesivo", "tunar", "tuning",
         "menu", "patroc", "propaganda", "configurac", "trofeu", "salvar o jogo", "save"]
 INGLES = {"you", "the", "is", "what", "i", "it", "to", "and", "are", "this", "that", "my"}
+BORDAO = {
+    "alanzoka": ["nao e possivel", "fala serio", "meu deus", "ai mano", "que isso", "socorro",
+                 "nao nao nao", "mano do ceu"],
+    "calango": ["velho", "fi ", "apavorado", "mano", "que loucura", "ai meu deus", "embacado",
+                "doidao", "ta maluco"],
+    "davyjones": ["easter egg", "segredo", "olha isso", "encontrei", "ovni", "misterio",
+                  "ninguem sabia", "escondido"],
+}
 TIPO = {"assalto": 1.5, "engracado": 1.0, "tenso": 1.0, "meme": 0.5, "destaque": 0.5,
         "hype": 0.0, "audio": -0.5}
 
@@ -55,16 +63,51 @@ def nota(txt: Path) -> float:
         s += min(max(reps) / 5, 2.0)
     if re.search(r"top:.*\bk[ks]*\b x\d+", chat):
         s += 1.5  # chat rindo
+    m = re.search(r"x([\d.]+) do normal", chat)
+    if m:  # chat explodiu em relação ao ritmo normal da live
+        s += min(max(float(m.group(1)) - 1, 0) * 1.2, 3.0)
+    # áudio e imagem: grito/risada (pico de volume) e ação na tela
+    sin = next((ln for ln in linhas[1:] if ln.startswith("sinais:")), "")
+    m = re.search(r"pico \+(\d+)", sin)
+    if m:
+        s += min(max(int(m.group(1)) - 8, 0) * 0.25, 2.5)
+    m = re.search(r"acao ([\d.]+)", sin)
+    if m:
+        a = float(m.group(1))
+        s += -1.0 if a < 0.3 else min(a * 0.4, 1.5)  # parado = menu/loja
+    # bordões de cada streamer
+    quem = partes[0].lower()
+    s += min(sum(f.count(b) for b in BORDAO.get(quem, [])) * 0.5, 1.5)
     # tipo do momento (vem no nome do arquivo)
     tipo = next((t for t in TIPO if f"_{t}" in txt.name), "hype")
     s += TIPO[tipo]
     return round(s, 2)
 
 
-def selecionar(pasta: Path, nomes: list[str], fracao: float = 0.4) -> list[tuple[str, float, bool]]:
+def _quando(nome: str) -> tuple[str, int]:
+    """(streamer, segundos do dia) a partir de 'calango_20261119-210903_...'."""
+    try:
+        p = nome.split("_")
+        h = p[1].split("-")[1]
+        return p[0], int(p[1][:8]) * 86400 + int(h[:2]) * 3600 + int(h[2:4]) * 60 + int(h[4:6])
+    except (IndexError, ValueError):
+        return nome, 0
+
+
+def selecionar(pasta: Path, nomes: list[str], fracao: float = 0.4,
+               minimo: float = 3.0) -> list[tuple[str, float, bool]]:
+    """Melhores ~40% (só os com nota ≥ mínimo), sem repetir o mesmo momento."""
     notas = sorted(((n, nota(pasta / f"{n}.txt")) for n in nomes), key=lambda x: -x[1])
-    manter = max(1, math.ceil(len(notas) * fracao)) if notas else 0
-    return [(n, s, i < manter) for i, (n, s) in enumerate(notas)]
+    vagas = max(1, math.ceil(len(notas) * fracao)) if notas else 0
+    escolhidos: list[str] = []
+    for n, s in notas:
+        quem, t = _quando(n)
+        repetido = any(_quando(e)[0] == quem and abs(_quando(e)[1] - t) < 45 for e in escolhidos)
+        if len(escolhidos) < vagas and s >= minimo and not repetido:
+            escolhidos.append(n)
+    if not escolhidos and notas:  # hora fraca: guarda só o melhor
+        escolhidos.append(notas[0][0])
+    return [(n, s, n in escolhidos) for n, s in notas]
 
 
 if __name__ == "__main__":

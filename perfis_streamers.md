@@ -23,6 +23,12 @@ Leia antes de escolher clipes. Atualize a seção "Aprendido" de cada um quando 
 - Clipa bem: a DESCOBERTA (ele vendo algo raro) + explicação curta. Funciona como conteúdo informativo.
 - Sem chat: decida só pela fala e pela empolgação.
 
+## bistecone
+- Novo na lista (20/11): observar o estilo nas primeiras horas e anotar aqui.
+
+## paulinhooloko
+- Novo na lista (20/11): humor caótico e reação escandalosa; observar e anotar aqui.
+
 ## Aprendido
 - 19/11 calango: lendas/criaturas (Mr. Manguezal) e briga que vira faca renderam os melhores.
 - 19/11 alanzoka: muitos clipes de tunagem/loja — quase sempre fracos.
