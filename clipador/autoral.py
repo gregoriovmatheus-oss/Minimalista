@@ -66,7 +66,8 @@ def _eleven(text: str) -> Path:
     return out
 
 
-def _texts(lines: list[str], y0: float, size: int, red: bool = True) -> str:
+def _texts(lines: list[str], y0: float, size: int, red: bool = True,
+           destaque: bool = False) -> str:
     font = _font()
     if not font:
         return ""
@@ -75,22 +76,37 @@ def _texts(lines: list[str], y0: float, size: int, red: bool = True) -> str:
     for i, ln in enumerate(lines):
         t = _tmp("txt")
         t.write_text(ln)
-        style = ("box=1:boxcolor=0xE11D48@0.95:boxborderw=14:borderw=3:bordercolor=black"
-                 if red else "borderw=5:bordercolor=black")
-        vf += (f",drawtext=fontfile='{f}':textfile='{t}':fontsize={size}:fontcolor=white:"
+        # 1ª linha em amarelo quando traz o número/fato principal (destaque)
+        amarelo = destaque and i == 0
+        style = (f"box=1:boxcolor={'0xFACC15' if amarelo else '0xE11D48'}@0.95:boxborderw=14:"
+                 "borderw=3:bordercolor=black" if red else "borderw=5:bordercolor=black")
+        cor = "black" if amarelo else "white"
+        if amarelo:
+            style = style.replace("borderw=3:bordercolor=black", "borderw=0")
+        vf += (f",drawtext=fontfile='{f}':textfile='{t}':fontsize={size}:fontcolor={cor}:"
                f"{style}:x=(w-tw)/2:y={y0}+{i * int(size * 1.45)}")
     return vf
 
 
-def card(title: str, narration: str, bg: Path | None = None) -> Path:
+def card(title: str, narration: str, bg: Path | None = None,
+         prog: tuple[float, float] | None = None) -> Path:
     """Tela de texto grande + narração. Fundo: quadro desfocado de um clipe ou gradiente."""
     audio = tts(narration)
     dur = float(subprocess.run(
         ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0",
          str(audio)], capture_output=True, text=True).stdout) + 0.35
     out = _tmp("mp4")
-    lines = _wrap(title.upper(), 16)[:4]
-    txt = _texts(lines, f"(h-{len(lines) * 75})/2", 64) + _texts([ASSINATURA], "h*0.86", 34, False)
+    # "|" no título força a quebra de linha (ex: "475 MILHÕES|EM 24H")
+    lines = [ln for parte in title.upper().split("|") for ln in _wrap(parte.strip(), 16)][:4]
+    destaque = any(ch.isdigit() for ch in lines[0])
+    txt = (_texts(lines, f"(h-{len(lines) * 75})/2", 64, destaque=destaque)
+           + _texts([ASSINATURA], "h*0.86", 34, False))
+    if prog:  # barra de progresso do vídeo inteiro (segura a retenção)
+        a, b = prog
+        txt += (f",drawbox=x=0:y=ih-14:w=iw:h=14:color=black@0.5:t=fill[pre];"
+                f"color=c=0xFACC15:s={W}x14:r=30:d={dur:.3f}[bar];"
+                f"[pre][bar]overlay=x='-W+W*({a:.4f}+{b - a:.4f}*t/{dur:.3f})':y=H-14"
+                ":eval=frame:shortest=1")
     if bg and bg.suffix.lower() in (".png", ".jpg", ".jpeg"):
         # imagem de referência com zoom lento (efeito Ken Burns)
         src = ["-loop", "1", "-t", f"{dur}", "-i", str(bg)]
@@ -105,8 +121,13 @@ def card(title: str, narration: str, bg: Path | None = None) -> Path:
         src = ["-f", "lavfi", "-t", f"{dur}", "-i",
                f"gradients=s={W}x{H}:c0=0x2b0040:c1=0xe11d48:c2=0x0b1d51:speed=0.015:r=30"]
         base = "[0:v]null"
-    _ff(*src, "-i", str(audio), "-filter_complex", base + txt + "[v]",
-        "-map", "[v]", "-map", "1:a", "-t", f"{dur}", *_enc(), str(out))
+    # flash branco curto na entrada (corte com impacto) + fade curto na saída;
+    # voz com compressão leve e volume padrão de TikTok (-14 LUFS)
+    fx = (f",fade=t=in:st=0:d=0.18:color=white,fade=t=out:st={dur - 0.15:.2f}:d=0.15")
+    afx = ("[1:a]highpass=f=80,acompressor=threshold=-18dB:ratio=3:attack=5:release=80,"
+           "loudnorm=I=-14:TP=-1.5:LRA=7,aresample=44100,apad[a]")
+    _ff(*src, "-i", str(audio), "-filter_complex", base + txt + fx + "[v];" + afx,
+        "-map", "[v]", "-map", "[a]", "-t", f"{dur}", *_enc(), str(out))
     return out
 
 
@@ -176,7 +197,9 @@ CURIOSIDADES = [
 
 def curiosidades(out: Path, itens: list = CURIOSIDADES) -> Path:
     """itens: (título, narração) ou (título, narração, imagem_de_fundo)."""
-    return join([card(i[0], i[1], Path(i[2]) if len(i) > 2 else None) for i in itens], out)
+    n = len(itens)
+    return join([card(it[0], it[1], Path(it[2]) if len(it) > 2 else None, (k / n, (k + 1) / n))
+                 for k, it in enumerate(itens)], out)
 
 
 if __name__ == "__main__":
