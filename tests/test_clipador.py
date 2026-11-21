@@ -210,3 +210,31 @@ def test_corte_inteligente():
 def test_corte_sem_fala():
     from clipador.clipper import smart_cut
     assert smart_cut([], 45, 25, 5) == (20, 50)
+
+
+def test_ranking_prefere_reacao_e_descarta_loja(tmp_path):
+    from clipador.ranking import selecionar
+    bom = tmp_path / "alanzoka_20261120-200000_engracado_vertical.txt"
+    bom.write_text("alanzoka | engracado | 25s | Meu Deus! Não é possível, mano! Socorro! "
+                   "A polícia me pegou de novo, fala sério, olha isso aqui chat\n"
+                   "chat: 120 msgs (240/min x4.0 do normal) | top: k x40, mds x6\n"
+                   "sinais: pico +18 dB | movimento 9.0\n")
+    ruim = tmp_path / "alanzoka_20261120-201000_hype_vertical.txt"
+    ruim.write_text("alanzoka | hype | 30s | vou na loja tunar o carro, botar adesivo, "
+                    "valeu pelo prime e pelo sub galera\n"
+                    "chat: 20 msgs (40/min x0.8 do normal) | top: a x2\n"
+                    "sinais: pico +3 dB | movimento 1.0\n")
+    repetido = tmp_path / "alanzoka_20261120-200020_engracado_vertical.txt"
+    repetido.write_text(bom.read_text())
+    nomes = [p.stem for p in (bom, ruim, repetido)]
+    res = {n: ok for n, _, ok in selecionar(tmp_path, nomes, fracao=1.0)}
+    assert res[bom.stem] and not res[ruim.stem] and not res[repetido.stem]
+
+
+def test_chat_resumo_compara_com_normal():
+    from collections import deque
+    from clipador.clipper import chat_resumo
+    log = deque([(t, "oi") for t in range(0, 600, 10)]            # 6/min antes
+                + [(600 + t / 2, "KKKKK") for t in range(60)])   # 60 msgs em 30s
+    r = chat_resumo(log, 600, 630)
+    assert "do normal" in r and "k x60" in r

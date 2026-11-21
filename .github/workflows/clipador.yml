@@ -8,7 +8,7 @@ on:
     inputs:
       duracao:
         description: "Minutos de gravação (máx. 340)"
-        default: "180"
+        default: "330"
 
 concurrency:
   group: clipador-${{ github.ref }}

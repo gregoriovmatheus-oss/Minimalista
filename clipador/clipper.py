@@ -372,11 +372,14 @@ def sinais(path: Path, ss: float, dur: float) -> str:
                            capture_output=True, text=True, timeout=120).stderr
         m = [float(x) for x in _re.findall(r" M:\s*(-?[\d.]+)", a) if float(x) > -70]
         pico = (sorted(m)[int(len(m) * 0.97)] - statistics.median(m)) if len(m) > 20 else 0.0
+        # movimento: diferença média entre quadros (menu/loja ~1-2, ação/perseguição 6+)
         v = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-ss", f"{ss}", "-t", f"{dur}",
                             "-i", str(path), "-an", "-vf",
-                            "scale=160:-2,fps=5,select='gt(scene,0.18)',metadata=print",
+                            "scale=96:-2,fps=4,tblend=all_mode=difference,signalstats,"
+                            "metadata=print:key=lavfi.signalstats.YAVG",
                             "-f", "null", "-"], capture_output=True, text=True, timeout=120).stderr
-        acao = v.count("lavfi.scene_score") * 10 / max(dur, 1)
-        return f"sinais: pico +{pico:.0f} dB | acao {acao:.1f}/10s\n"
+        dif = [float(x) for x in _re.findall(r"YAVG=([\d.]+)", v)]
+        acao = statistics.mean(dif) if dif else 0.0
+        return f"sinais: pico +{pico:.0f} dB | movimento {acao:.1f}\n"
     except Exception:  # sinal é bônus
         return ""

@@ -134,7 +134,7 @@ class HypeDetector:
         self._last_tick: float | None = None
         self._recent: deque[tuple[float, str]] = deque()
         self._counts: Counter[str] = Counter()
-        self._texts: deque[tuple[float, str]] = deque(maxlen=400)
+        self._texts: deque[tuple[float, str]] = deque(maxlen=8000)  # ~10 min de chat cheio
 
     def add(self, ts: float, text: str) -> float | None:
         """Registra uma mensagem; retorna o horário do pico se disparou."""

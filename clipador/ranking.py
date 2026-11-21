@@ -55,9 +55,9 @@ def nota(txt: Path) -> float:
         s -= 1.5  # quase só NPC falando em inglês
     # chat durante o clipe
     chat = next((ln for ln in linhas[1:] if ln.startswith("chat:")), "")
-    m = re.search(r"\((\d+)/min\)", chat)
-    if m:
-        s += min(int(m.group(1)) / 30, 3.0)
+    m = re.search(r"\((\d+)/min", chat)
+    if m:  # volume absoluto pesa pouco: chat grande é normal em streamer grande
+        s += min(int(m.group(1)) / 60, 1.0)
     reps = [int(n) for n in re.findall(r" x(\d+)", chat)]
     if reps:
         s += min(max(reps) / 5, 2.0)
@@ -71,10 +71,10 @@ def nota(txt: Path) -> float:
     m = re.search(r"pico \+(\d+)", sin)
     if m:
         s += min(max(int(m.group(1)) - 8, 0) * 0.25, 2.5)
-    m = re.search(r"acao ([\d.]+)", sin)
+    m = re.search(r"movimento ([\d.]+)", sin)
     if m:
         a = float(m.group(1))
-        s += -1.0 if a < 0.3 else min(a * 0.4, 1.5)  # parado = menu/loja
+        s += -1.0 if a < 2.5 else min((a - 2.5) * 0.25, 1.5)  # parado = menu/loja
     # bordões de cada streamer
     quem = partes[0].lower()
     s += min(sum(f.count(b) for b in BORDAO.get(quem, [])) * 0.5, 1.5)
