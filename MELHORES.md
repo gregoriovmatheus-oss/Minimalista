@@ -2,6 +2,13 @@
 
 Só os que valem postar, mais novos no topo. Toque em ▶ para abrir o vídeo; a legenda já vem pronta para copiar.
 
+## 21/11
+
+- [▶ Alanzoka — Ela não defende, fui humilhado](https://github.com/gregoriovmatheus-oss/Minimalista/releases/download/melhores/alanzoka_20261121-155242_engracado_vertical.mp4)
+  `APERTOU DEFENDER E A LUCIA NÃO DEFENDEU 💀 "FUI HUMILHADO" @alanzoka #gta6 #gta #alanzoka #clips #fyp #viral #foryou`
+- [▶ Alanzoka — Me fechou e me jogou pra fora](https://github.com/gregoriovmatheus-oss/Minimalista/releases/download/melhores/alanzoka_20261121-150550_engracado_vertical.mp4)
+  `OS CARAS JOGARAM ELE PRA FORA DA CORRIDA 😤 "QUE BIZARRO" @alanzoka #gta6 #gta #alanzoka #clips #fyp #viral #foryou`
+
 ## 20/11 (top 10 da noite)
 
 - [▶ Alanzoka — Alugou o pior carro do GTA 6](https://github.com/gregoriovmatheus-oss/Minimalista/releases/download/melhores/alanzoka_20261120-164122_engracado_vertical.mp4)
