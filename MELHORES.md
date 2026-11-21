@@ -4,6 +4,11 @@ Só os que valem postar, mais novos no topo. Toque em ▶ para abrir o vídeo; a
 
 ## 21/11
 
+- [▶ Alanzoka — Me assaltou e o criminoso sou eu](https://github.com/gregoriovmatheus-oss/Minimalista/releases/download/melhores/alanzoka_20261121-175758_destaque_vertical.mp4)
+  `O CARA ASSALTOU ELE… E QUEM VIROU CRIMINOSO FOI O ALANZOKA 😤 "FALA SÉRIO" @alanzoka #gta6 #gta #alanzoka #clips #fyp #viral #foryou`
+- [▶ Alanzoka — Ele matou o assistente!](https://github.com/gregoriovmatheus-oss/Minimalista/releases/download/melhores/alanzoka_20261121-182959_destaque_vertical.mp4)
+  `O ASSISTENTE NÃO DUROU 10 SEGUNDOS NO GTA 6 😱 @alanzoka #gta6 #gta #alanzoka #clips #fyp #viral #foryou`
+
 - [▶ Alanzoka — Ela não defende, fui humilhado](https://github.com/gregoriovmatheus-oss/Minimalista/releases/download/melhores/alanzoka_20261121-155242_engracado_vertical.mp4)
   `APERTOU DEFENDER E A LUCIA NÃO DEFENDEU 💀 "FUI HUMILHADO" @alanzoka #gta6 #gta #alanzoka #clips #fyp #viral #foryou`
 - [▶ Alanzoka — Me fechou e me jogou pra fora](https://github.com/gregoriovmatheus-oss/Minimalista/releases/download/melhores/alanzoka_20261121-150550_engracado_vertical.mp4)
