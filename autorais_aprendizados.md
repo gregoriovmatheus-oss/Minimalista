@@ -7,3 +7,5 @@
 - Títulos: use "|" para quebrar a linha à mão e nunca separar número da unidade ("475 MILHÕES|EM 24 HORAS"); a 1ª linha com número sai em amarelo. Barra de progresso no rodapé já é automática em curiosidades(); no ffmpeg 6.1 animar com overlay (drawbox não aceita t).
 - Sempre transcrever o vídeo final com faster-whisper (modelo small) e comparar com o roteiro: pega palavra mal pronunciada ("views" virou "vios": use palavras em português) e é a mesma fonte das legendas palavra por palavra.
 - Conferir quadros com seek PRECISO (-ss depois do -i) e nb_frames ≈ duração×30: imagem fixa precisa de -framerate 30 antes do -loop, senão cada cena perde 1/6 do vídeo.
+- Nomes estrangeiros (Port Gellhorn, Chiliad, Brian, Red Dead) saem errados no Kokoro e no Whisper: troque por descrição em português ("a montanha do GTA cinco"). A legenda agora corrige a grafia pelo roteiro (palavras parecidas ≥ 75%), mas a pronúncia não.
+- sd-turbo põe letreiros com texto falso em cenas de bar/loja: peça "plain walls", sem neon signs; cor específica do objeto ("lime green") precisa vir no começo do prompt.

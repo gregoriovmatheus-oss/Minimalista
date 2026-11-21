@@ -116,7 +116,22 @@ def _texts(lines: list[str], y0: float, size: int, red: bool = True,
 _WHISPER = None
 
 
-def palavras(audio: Path) -> list[tuple[str, float, float]]:
+def _corrige(ws: list, roteiro: str) -> list:
+    """Troca a grafia do Whisper pela do roteiro quando a palavra é quase igual
+    ("Veloses" -> "Velozes"); números e palavras diferentes ficam como o Whisper ouviu."""
+    import difflib
+    import re
+    ref = {re.sub(r"\W", "", w).lower(): w.strip(".,!?") for w in roteiro.split()}
+    out = []
+    for w, a, b in ws:
+        nu = re.sub(r"\W", "", w).lower()
+        m = difflib.get_close_matches(nu, list(ref), n=1, cutoff=0.75) if nu and not nu.isdigit() else []
+        pont = w[-1] if w[-1] in ".,!?" else ""
+        out.append((ref[m[0]] + pont if m and m[0] != nu else w, a, b))
+    return out
+
+
+def palavras(audio: Path, roteiro: str = "") -> list[tuple[str, float, float]]:
     """Tempo de cada palavra falada (faster-whisper); [] se indisponível."""
     global _WHISPER
     try:
@@ -128,7 +143,8 @@ def palavras(audio: Path) -> list[tuple[str, float, float]]:
         a, sr = sf.read(str(audio), dtype="float32")
         a = resample_poly(a if a.ndim == 1 else a.mean(1), 16000, sr).astype("float32")
         segs, _ = _WHISPER.transcribe(a, language="pt", word_timestamps=True)
-        return [(w.word.strip(), w.start, w.end) for sg in segs for w in sg.words if w.word.strip()]
+        ws = [(w.word.strip(), w.start, w.end) for sg in segs for w in sg.words if w.word.strip()]
+        return _corrige(ws, roteiro) if roteiro else ws
     except Exception as e:  # noqa: BLE001
         print(f"sem legenda por palavra ({e})", file=sys.stderr)
         return []
@@ -199,7 +215,7 @@ def card(title: str, narration: str, bg: Path | None = None,
     # "|" no título força a quebra de linha (ex: "475 MILHÕES|EM 24H")
     lines = [ln for parte in title.upper().split("|") for ln in _wrap(parte.strip(), 16)][:4]
     destaque = any(ch.isdigit() for ch in lines[0])
-    ws = palavras(audio) if legenda else []
+    ws = palavras(audio, narration) if legenda else []
     ytit = "h*0.11" if ws else f"(h-{len(lines) * 75})/2"
     txt = (_texts(lines, ytit, 64, destaque=destaque) + _legenda(ws, dur)
            + _texts([ASSINATURA], "h*0.86", 34, False))
