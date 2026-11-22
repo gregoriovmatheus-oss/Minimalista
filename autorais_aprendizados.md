@@ -9,3 +9,5 @@
 - Conferir quadros com seek PRECISO (-ss depois do -i) e nb_frames ≈ duração×30: imagem fixa precisa de -framerate 30 antes do -loop, senão cada cena perde 1/6 do vídeo.
 - Nomes estrangeiros (Port Gellhorn, Chiliad, Brian, Red Dead) saem errados no Kokoro e no Whisper: troque por descrição em português ("a montanha do GTA cinco"). A legenda agora corrige a grafia pelo roteiro (palavras parecidas ≥ 75%), mas a pronúncia não.
 - sd-turbo põe letreiros com texto falso em cenas de bar/loja: peça "plain walls", sem neon signs; cor específica do objeto ("lime green") precisa vir no começo do prompt.
+- Fontes novas e confiáveis secam rápido: com 3 itens fortes, faça 3 (vídeo de ~34 s) em vez de usar boato de 1 fonte. Repetidos/fracos já vistos: South Park, Seinfeld, caranguejo gigante, papagaios (sem 2ª fonte).
+- sd-turbo ficou ~4x mais lento à noite (CPU dividida): rode a geração com timeout e reaproveite cenas genéricas (skyline final) de pastas anteriores.
