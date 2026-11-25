@@ -47,9 +47,32 @@ function draw(){chips();const l=C.filter(c=>f=="Todos"||(f=="⭐ Melhores"?c.bes
 if(f.startsWith("🏆"))l.sort((a,b)=>a.pos-b.pos);
 document.getElementById("g").innerHTML=l.length?l.map(c=>`<article class="card">
 <video controls playsinline preload="none" poster="${c.poster}" src="${c.file}"></video>
-<div class="i"><div class="m"><span class="who">${c.who}</span><span>${c.when}</span><span>${c.dur}</span>${c.pos?`<span class="star">🏆 ${c.pos}º</span>`:c.best?'<span class="star">⭐ escolhido</span>':""}</div>
+<div class="i"><div class="m"><span class="who">${c.who}</span><span>${c.when}</span><span>${c.dur}</span>${c.pos=="0"?'<span class="star">🎬 vídeo completo</span>':c.pos?`<span class="star">🏆 ${c.pos}º</span>`:c.best?'<span class="star">⭐ escolhido</span>':""}</div>
 <div class="f">${c.fala}</div><a class="b" href="${c.file}" download>⬇ Baixar</a></div></article>`).join(""):'<p class="sub">Nenhum clipe aqui ainda.</p>'}
 draw();
+</script></body></html>"""
+
+
+# Login do TikTok (uma vez só): entra, volta aqui com o code e salva no GitHub,
+# que troca o code pelo token (workflow tiktok-login.yml). Nada de secret aqui.
+TIKTOK = """<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Conectar TikTok</title>
+<style>body{margin:0;background:#0d0a14;color:#f4eef8;font:16px system-ui;padding:24px 16px}
+h1{font:800 24px system-ui}input,a,button{display:block;width:100%;box-sizing:border-box;font:600 16px system-ui;
+border-radius:10px;padding:14px;margin:10px 0;border:1px solid #2c2238;background:#18121f;color:#f4eef8;text-align:center;text-decoration:none}
+.b{background:#e11d48;border-color:#e11d48;color:#fff}p{color:#a596b4}</style></head><body>
+<h1>Conectar o TikTok</h1><div id="x"></div>
+<script>
+const R=location.origin+location.pathname,q=new URLSearchParams(location.search),x=document.getElementById("x");
+const BR="claude/loving-clarke-xzzliy",REPO="gregoriovmatheus-oss/Minimalista";
+if(q.get("code")){const v=q.get("code")+" "+R;
+x.innerHTML=`<p>✅ Login feito. Agora toque no botão, e no GitHub toque em <b>Commit changes</b> (duas vezes). Faça isso em até 5 minutos.</p>
+<a class="b" href="https://github.com/${REPO}/new/${BR}?filename=tiktok_code.txt&value=${encodeURIComponent(v)}">Salvar no GitHub</a>`}
+else{x.innerHTML=`<p>Cole o <b>Client key</b> do seu app (developers.tiktok.com) e toque em Entrar.</p>
+<input id="k" placeholder="Client key" autocapitalize="off"><button class="b" id="go">Entrar com TikTok</button>`;
+document.getElementById("go").onclick=()=>{const k=document.getElementById("k").value.trim();if(!k)return;
+location.href="https://www.tiktok.com/v2/auth/authorize/?"+new URLSearchParams({client_key:k,
+scope:"user.info.basic,video.upload",response_type:"code",redirect_uri:R,state:"vc"})}}
 </script></body></html>"""
 
 
@@ -76,6 +99,7 @@ def build(pasta: Path, melhores: Path | None = None) -> Path:
                       "lote": partes[1].split(" #")[0] if partes[1].startswith("top5") else "",
                       "pos": partes[1].split("#")[-1] if partes[1].startswith("top5") else "",
                       "fala": html.escape(" ".join(partes[3].split()[:30]))})
+    (pasta / "tiktok.html").write_text(TIKTOK)
     out = pasta / "index.html"
     out.write_text(PAGE.replace("__DATA__", json.dumps(itens, ensure_ascii=False)
                                 .replace("</", "<\\/")))
