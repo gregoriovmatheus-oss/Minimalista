@@ -59,6 +59,8 @@ jobs:
               && gh release edit "$TAG" --notes-file notas.md >/dev/null 2>&1
             [ -f clipador.log ] && cp clipador.log enviados/log.txt \
               && gh release upload "$TAG" enviados/log.txt --clobber >/dev/null 2>&1
+            [ -s top5_log.txt ] && cp top5_log.txt enviados/top5_log.txt \
+              && gh release upload "$TAG" enviados/top5_log.txt --clobber >/dev/null 2>&1
           }
           ( set +e; while true; do sleep 45; enviar || true; done ) &
           # de hora em hora: nota cada clipe novo, apaga os fracos e separa os
@@ -87,7 +89,7 @@ jobs:
           # top 5 de GTA 6 mais vistos da Twitch (PT-BR): prontos até 10h, 17h e 21h
           virais() {
             gh release view melhores --json assets -q '.assets[].name' > feitos.lst 2>/dev/null
-            python -m clipador.virais virais feitos.lst 2>>clipador.log | while read -r f; do
+            python -m clipador.virais virais feitos.lst 2>>top5_log.txt | while read -r f; do
               gh release upload melhores "$f" "${f%.mp4}.txt" --clobber >/dev/null 2>&1 \
                 && echo "🏆 top5: $(basename "$f")"
             done

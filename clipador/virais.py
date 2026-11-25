@@ -97,8 +97,10 @@ def buscar(cid: str, tok: str) -> list:
 
 def main(saida: Path, feitos_lst: Path) -> None:
     cid, sec = os.environ.get("TWITCH_CLIENT_ID"), os.environ.get("TWITCH_CLIENT_SECRET")
+    def log(m: str) -> None:
+        print(f"{datetime.now(BRT):%d/%m %H:%M} {m}", file=sys.stderr, flush=True)
     if not cid or not sec:
-        return
+        return log("faltam os secrets TWITCH_CLIENT_ID / TWITCH_CLIENT_SECRET")
     feitos = set(feitos_lst.read_text().split()) if feitos_lst.exists() else set()
     lote = lote_agora(datetime.now(timezone.utc), feitos)
     if not lote:
@@ -106,7 +108,9 @@ def main(saida: Path, feitos_lst: Path) -> None:
     nome, dia, pos = lote  # continua de onde parou se a rodada caiu no meio
     tok = _token(cid, sec)
     saida.mkdir(parents=True, exist_ok=True)
-    for c in escolher(buscar(cid, tok), feitos):
+    lista = escolher(buscar(cid, tok), feitos)
+    log(f"lote {nome} {dia}: {pos} prontos, {len(lista)} candidatos em PT")
+    for c in lista:
         if pos >= TOP:
             break
         quem = re.sub(r"[^a-z0-9]", "", c["broadcaster_name"].lower()) or "twitch"
@@ -115,6 +119,7 @@ def main(saida: Path, feitos_lst: Path) -> None:
         bruto, vert = saida / f"{stem}.mp4", saida / f"{stem}_vertical.mp4"
         r = subprocess.run(["streamlink", "--quiet", "-f", "-o", str(bruto), c["url"], "best"])
         if r.returncode or not bruto.exists():
+            log(f"não baixou {c['url']}")
             continue  # não baixou: o próximo da lista assume a posição
         rodape = f"@viceclips.vibr  ·  twitch.tv/{quem}"
         if make_vertical(bruto, vert, titulo(c.get("title", "")), rodape) and vert.exists():
@@ -124,7 +129,8 @@ def main(saida: Path, feitos_lst: Path) -> None:
                 f"{quem} | top5 {rotulo} {dia[:2]}/{dia[2:]} #{pos} | "
                 f"{round(c.get('duration', 0))}s | {c.get('title', '').strip()} "
                 f"({c.get('view_count', 0)} views na Twitch)\n")
-            print(vert)
+            print(vert, flush=True)
+            log(f"#{pos} {quem} ({c.get('view_count', 0)} views)")
         bruto.unlink(missing_ok=True)
 
 
