@@ -146,7 +146,7 @@ jobs:
             !clipes/**/*_vertical.mp4
           if-no-files-found: warn
       - name: Reiniciar a gravação (nova rodada)
-        if: always()
+        if: success() || failure()  # cancelada = outra rodada já assumiu (evita loop)
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run clipador.yml --ref "$GITHUB_REF_NAME"
