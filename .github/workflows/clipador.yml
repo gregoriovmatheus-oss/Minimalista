@@ -92,7 +92,7 @@ jobs:
                 && echo "🏆 top5: $(basename "$f")"
             done
           }
-          # lote completo (5 clipes) -> vídeo "TOP 5" montado -> rascunho no TikTok
+          # lote completo (5 clipes) -> vídeo "TOP 5" montado -> só na galeria
           top5video() {
             dia=$(TZ=America/Sao_Paulo date +%d%m)
             for lote in manha tarde noite; do
@@ -104,12 +104,6 @@ jobs:
               f=$(python -m clipador.top5 t5 "$lote" "$dia") || continue
               gh release upload melhores "$f" "${f%.mp4}.txt" --clobber >/dev/null 2>&1 \
                 && echo "🎬 vídeo top 5: $(basename "$f")" && echo "$(basename "$f")" >> feitos.lst
-              if [ -n "$TIKTOK_CLIENT_KEY" ] && [ -f tiktok_token.enc ]; then
-                python -m clipador.tiktok enviar "$f" 2>&1 | tail -2
-                if ! git diff --quiet tiktok_token.enc; then  # token renovado
-                  git -c user.name=clipador -c user.email=clipador@users.noreply.github.com \
-                    commit -qm "token TikTok renovado [skip ci]" tiktok_token.enc && git push -q
-                fi
               fi
             done
           }
