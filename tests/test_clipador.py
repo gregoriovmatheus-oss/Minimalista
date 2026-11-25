@@ -253,3 +253,14 @@ def test_virais_top5_sem_repetir_e_por_horario():
     cheio = {f"x_1_top5_manha_2511_{n}_z{n}_vertical.mp4" for n in range(5)}
     assert lote_agora(utc(13, 0), cheio) is None             # manhã completa
     assert lote_agora(utc(19, 31), cheio) == ("tarde", "2511", 0)
+
+
+def test_scripts_dos_workflows_sem_erro_de_sintaxe():
+    import subprocess, yaml
+    from pathlib import Path
+    for wf in Path(__file__).parent.parent.glob(".github/workflows/*.yml"):
+        for st in yaml.safe_load(wf.read_text())["jobs"]["clipar" if "clipador" in wf.name else
+                                                       next(iter(yaml.safe_load(wf.read_text())["jobs"]))]["steps"]:
+            if "run" in st:
+                r = subprocess.run(["bash", "-n"], input=st["run"], text=True, capture_output=True)
+                assert r.returncode == 0, f"{wf.name}: {st.get('name')}: {r.stderr}"

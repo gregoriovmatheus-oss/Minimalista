@@ -30,6 +30,7 @@ jobs:
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fontconfig fonts-dejavu-core libass9
       - run: pip install -q -r requirements.txt
       - name: Gravar e cortar (clipes vão saindo em Releases)
+        id: gravar
         env:
           GH_TOKEN: ${{ github.token }}
           TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
@@ -52,7 +53,6 @@ jobs:
               t="${f%.mp4}.txt"
               [ -f "$t" ] && cp "$t" "enviados/${n%.mp4}.txt" \
                 && gh release upload "$TAG" "enviados/${n%.mp4}.txt" --clobber >/dev/null 2>&1
-              fi
             done
             python -m clipador.indice enviados "$GITHUB_REPOSITORY" "$TAG" > notas.new 2>/dev/null \
               && ! cmp -s notas.new notas.md && mv notas.new notas.md \
@@ -146,7 +146,8 @@ jobs:
             !clipes/**/*_vertical.mp4
           if-no-files-found: warn
       - name: Reiniciar a gravação (nova rodada)
-        if: ${{ !cancelled() }}  # cancelada = outra rodada já assumiu (evita loop)
+        # só se a gravação terminou bem: cancelada ou com erro não reinicia (evita loop)
+        if: ${{ !cancelled() && steps.gravar.outcome == 'success' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run clipador.yml --ref "$GITHUB_REF_NAME"
