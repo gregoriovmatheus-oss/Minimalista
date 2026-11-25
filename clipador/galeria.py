@@ -40,13 +40,14 @@ video{display:block;width:100%;aspect-ratio:9/16;background:#000}
 <script>
 const C=__DATA__;let f="⭐ Melhores";
 if(!C.some(c=>c.best))f="Todos";
-function chips(){const n=["⭐ Melhores","Todos",...new Set(C.map(c=>c.who))];
+function chips(){const n=["⭐ Melhores","Todos",...new Set(C.filter(c=>c.lote).map(c=>c.lote.replace("top5","🏆 Top 5"))),...new Set(C.map(c=>c.who))];
 document.getElementById("chips").innerHTML=n.map(x=>`<button class="chip ${x==f?"on":""}">${x}</button>`).join("");
 document.querySelectorAll(".chip").forEach((b,i)=>b.onclick=()=>{f=n[i];draw()})}
-function draw(){chips();const l=C.filter(c=>f=="Todos"||(f=="⭐ Melhores"?c.best:c.who==f));
+function draw(){chips();const l=C.filter(c=>f=="Todos"||(f=="⭐ Melhores"?c.best:(c.who==f||c.lote.replace("top5","🏆 Top 5")==f)));
+if(f.startsWith("🏆"))l.sort((a,b)=>a.pos-b.pos);
 document.getElementById("g").innerHTML=l.length?l.map(c=>`<article class="card">
 <video controls playsinline preload="none" poster="${c.poster}" src="${c.file}"></video>
-<div class="i"><div class="m"><span class="who">${c.who}</span><span>${c.when}</span><span>${c.dur}</span>${c.best?'<span class="star">⭐ escolhido</span>':""}</div>
+<div class="i"><div class="m"><span class="who">${c.who}</span><span>${c.when}</span><span>${c.dur}</span>${c.pos?`<span class="star">🏆 ${c.pos}º</span>`:c.best?'<span class="star">⭐ escolhido</span>':""}</div>
 <div class="f">${c.fala}</div><a class="b" href="${c.file}" download>⬇ Baixar</a></div></article>`).join(""):'<p class="sub">Nenhum clipe aqui ainda.</p>'}
 draw();
 </script></body></html>"""
@@ -71,7 +72,9 @@ def build(pasta: Path, melhores: Path | None = None) -> Path:
         except (IndexError, ValueError):
             when = ""
         itens.append({"file": mp4.name, "poster": poster.name, "who": stem.split("_")[0],
-                      "when": when, "dur": partes[2], "best": stem in best or "_viral_" in stem,
+                      "when": when, "dur": partes[2], "best": stem in best or "_top5_" in stem,
+                      "lote": partes[1].split(" #")[0] if partes[1].startswith("top5") else "",
+                      "pos": partes[1].split("#")[-1] if partes[1].startswith("top5") else "",
                       "fala": html.escape(" ".join(partes[3].split()[:30]))})
     out = pasta / "index.html"
     out.write_text(PAGE.replace("__DATA__", json.dumps(itens, ensure_ascii=False)

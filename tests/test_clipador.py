@@ -240,10 +240,16 @@ def test_chat_resumo_compara_com_normal():
     assert "do normal" in r and "k x60" in r
 
 
-def test_virais_escolhe_pt_mais_vistos_sem_repetir():
-    from clipador.virais import escolher
-    c = lambda i, q, v, l="pt-br": {"id": i, "broadcaster_name": q, "view_count": v, "language": l}
-    lista = [c("a1", "x", 900), c("a2", "x", 800), c("a3", "x", 700), c("b1", "y", 50),
-             c("e1", "z", 5000, "en"), c("d1", "w", 400)]
-    ids = [x["id"] for x in escolher(lista, {"w_20261125-000000_viral_d1_vertical.mp4"}, 8)]
-    assert ids == ["a1", "a2"]
+def test_virais_top5_sem_repetir_e_por_horario():
+    from datetime import datetime, timezone
+    from clipador.virais import escolher, lote_agora
+    c = lambda i, v, l="pt-br": {"id": i, "broadcaster_name": "x", "view_count": v, "language": l}
+    lista = [c("a1", 900), c("a2", 800), c("e1", 5000, "en"), c("d1", 400), c("b1", 10)]
+    feitos = {"x_20261125-000000_top5_manha_2511_1_a1_vertical.mp4"}
+    assert [x["id"] for x in escolher(lista, feitos)] == ["a2", "d1"]
+    utc = lambda h, m: datetime(2026, 11, 25, h, m, tzinfo=timezone.utc)
+    assert lote_agora(utc(12, 0), set()) is None            # 9h BRT: cedo
+    assert lote_agora(utc(12, 40), feitos) == ("manha", "2511", 1)
+    cheio = {f"x_1_top5_manha_2511_{n}_z{n}_vertical.mp4" for n in range(5)}
+    assert lote_agora(utc(13, 0), cheio) is None             # manhã completa
+    assert lote_agora(utc(19, 31), cheio) == ("tarde", "2511", 0)

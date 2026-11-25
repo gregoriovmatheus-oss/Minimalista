@@ -90,15 +90,15 @@ jobs:
             cat novos.lst >> avaliados.lst
           }
           ( set +e; while true; do sleep 3600; limpar || true; done ) &
-          # a cada 3h: os clipes de GTA mais vistos da Twitch (PT-BR) direto nos melhores
+          # top 5 de GTA 6 mais vistos da Twitch (PT-BR): prontos até 10h, 17h e 21h
           virais() {
             gh release view melhores --json assets -q '.assets[].name' > feitos.lst 2>/dev/null
-            python -m clipador.virais virais feitos.lst 24 8 2>>clipador.log | while read -r f; do
+            python -m clipador.virais virais feitos.lst 2>>clipador.log | while read -r f; do
               gh release upload melhores "$f" "${f%.mp4}.txt" --clobber >/dev/null 2>&1 \
-                && echo "🔥 viral: $(basename "$f")"
+                && echo "🏆 top5: $(basename "$f")"
             done
           }
-          ( set +e; sleep 60; while true; do virais || true; sleep 10800; done ) &
+          ( set +e; while true; do virais || true; sleep 300; done ) &
           # pedidos de corte manual: asset "cortar.txt" no release (ex: "calango")
           touch comandos
           ( set +e; ultimo=""; while true; do
