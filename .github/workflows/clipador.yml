@@ -104,7 +104,6 @@ jobs:
               f=$(python -m clipador.top5 t5 "$lote" "$dia") || continue
               gh release upload melhores "$f" "${f%.mp4}.txt" --clobber >/dev/null 2>&1 \
                 && echo "🎬 vídeo top 5: $(basename "$f")" && echo "$(basename "$f")" >> feitos.lst
-              fi
             done
           }
           ( set +e; while true; do virais || true
