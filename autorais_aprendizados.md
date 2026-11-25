@@ -3,3 +3,11 @@
 - Narração Piper soa robótica em frases longas: frases de no máximo ~12 palavras, números por extenso.
 - sd-turbo erra texto e rostos: prompts sem texto, sem rostos em close; preferir cenários, objetos, neon de Vice City.
 - Títulos na tela com no máximo 4 linhas de 16 caracteres.
+- Meta é nota 10, não 8. ElevenLabs sem crédito (21/11) → tts() usa Kokoro (pm_alex, neural, offline; precisa apt espeak-ng + pip kokoro misaki loguru phonemizer-fork espeakng-loader num2words scipy soundfile, kokoro/misaki com --no-deps no Python 3.13). Piper só em último caso.
+- Títulos: use "|" para quebrar a linha à mão e nunca separar número da unidade ("475 MILHÕES|EM 24 HORAS"); a 1ª linha com número sai em amarelo. Barra de progresso no rodapé já é automática em curiosidades(); no ffmpeg 6.1 animar com overlay (drawbox não aceita t).
+- Sempre transcrever o vídeo final com faster-whisper (modelo small) e comparar com o roteiro: pega palavra mal pronunciada ("views" virou "vios": use palavras em português) e é a mesma fonte das legendas palavra por palavra.
+- Conferir quadros com seek PRECISO (-ss depois do -i) e nb_frames ≈ duração×30: imagem fixa precisa de -framerate 30 antes do -loop, senão cada cena perde 1/6 do vídeo.
+- Nomes estrangeiros (Port Gellhorn, Chiliad, Brian, Red Dead) saem errados no Kokoro e no Whisper: troque por descrição em português ("a montanha do GTA cinco"). A legenda agora corrige a grafia pelo roteiro (palavras parecidas ≥ 75%), mas a pronúncia não.
+- sd-turbo põe letreiros com texto falso em cenas de bar/loja: peça "plain walls", sem neon signs; cor específica do objeto ("lime green") precisa vir no começo do prompt.
+- Fontes novas e confiáveis secam rápido: com 3 itens fortes, faça 3 (vídeo de ~34 s) em vez de usar boato de 1 fonte. Repetidos/fracos já vistos: South Park, Seinfeld, caranguejo gigante, papagaios (sem 2ª fonte).
+- sd-turbo ficou ~4x mais lento à noite (CPU dividida): rode a geração com timeout e reaproveite cenas genéricas (skyline final) de pastas anteriores.

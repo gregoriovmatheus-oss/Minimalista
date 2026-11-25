@@ -32,3 +32,5 @@ Leia antes de escolher clipes. Atualize a seção "Aprendido" de cada um quando 
 ## Aprendido
 - 19/11 calango: lendas/criaturas (Mr. Manguezal) e briga que vira faca renderam os melhores.
 - 19/11 alanzoka: muitos clipes de tunagem/loja — quase sempre fracos.
+- 21/11 alanzoka: briga corpo a corpo que ele perde ("ela não defende") e corrida com fechada rendem; chat x4 com "solado"/"bigzaro" confirma.
+- 21/11 tarde alanzoka: muita cutscene com dublagem e leitura de chat (Virginia) — fracos; rende quando ele reclama de injustiça do jogo (atropelou o assaltante e virou o procurado).

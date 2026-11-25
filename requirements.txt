@@ -1,3 +1,8 @@
 streamlink>=6.0
 opencv-python-headless
 faster-whisper
+# vídeos autorais (opcionais): voz neural e legendas por palavra
+# kokoro misaki (instalar com --no-deps no Python 3.13) + espeak-ng (apt)
+faster-whisper
+soundfile
+scipy
