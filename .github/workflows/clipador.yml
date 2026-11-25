@@ -34,6 +34,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
           TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
+          TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
+          TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
         run: |
           set +e  # um upload que falha não pode derrubar o resto
           TAG="clipes-$GITHUB_RUN_ID"
@@ -88,6 +90,15 @@ jobs:
             cat novos.lst >> avaliados.lst
           }
           ( set +e; while true; do sleep 3600; limpar || true; done ) &
+          # a cada 3h: os clipes de GTA mais vistos da Twitch (PT-BR) direto nos melhores
+          virais() {
+            gh release view melhores --json assets -q '.assets[].name' > feitos.lst 2>/dev/null
+            python -m clipador.virais virais feitos.lst 24 8 2>>clipador.log | while read -r f; do
+              gh release upload melhores "$f" "${f%.mp4}.txt" --clobber >/dev/null 2>&1 \
+                && echo "🔥 viral: $(basename "$f")"
+            done
+          }
+          ( set +e; sleep 60; while true; do virais || true; sleep 10800; done ) &
           # pedidos de corte manual: asset "cortar.txt" no release (ex: "calango")
           touch comandos
           ( set +e; ultimo=""; while true; do

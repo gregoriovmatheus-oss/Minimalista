@@ -71,7 +71,7 @@ def build(pasta: Path, melhores: Path | None = None) -> Path:
         except (IndexError, ValueError):
             when = ""
         itens.append({"file": mp4.name, "poster": poster.name, "who": stem.split("_")[0],
-                      "when": when, "dur": partes[2], "best": stem in best,
+                      "when": when, "dur": partes[2], "best": stem in best or "_viral_" in stem,
                       "fala": html.escape(" ".join(partes[3].split()[:30]))})
     out = pasta / "index.html"
     out.write_text(PAGE.replace("__DATA__", json.dumps(itens, ensure_ascii=False)

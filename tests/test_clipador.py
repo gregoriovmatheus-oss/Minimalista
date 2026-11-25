@@ -238,3 +238,12 @@ def test_chat_resumo_compara_com_normal():
                 + [(600 + t / 2, "KKKKK") for t in range(60)])   # 60 msgs em 30s
     r = chat_resumo(log, 600, 630)
     assert "do normal" in r and "k x60" in r
+
+
+def test_virais_escolhe_pt_mais_vistos_sem_repetir():
+    from clipador.virais import escolher
+    c = lambda i, q, v, l="pt-br": {"id": i, "broadcaster_name": q, "view_count": v, "language": l}
+    lista = [c("a1", "x", 900), c("a2", "x", 800), c("a3", "x", 700), c("b1", "y", 50),
+             c("e1", "z", 5000, "en"), c("d1", "w", 400)]
+    ids = [x["id"] for x in escolher(lista, {"w_20261125-000000_viral_d1_vertical.mp4"}, 8)]
+    assert ids == ["a1", "a2"]
